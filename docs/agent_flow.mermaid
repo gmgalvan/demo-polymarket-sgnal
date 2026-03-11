@@ -1,0 +1,51 @@
+graph TD
+    subgraph INFRA["⚙️ INFRASTRUCTURE"]
+        WS["🌐 WebSockets (Binance + Polymarket)"]
+        VG["🐕 WATCHDOG (asyncio · 24/7)"]
+    end
+
+    subgraph BG["📰 BACKGROUND"]
+        AC["📰 Context Analyst (Llama 3.1 8B)"]
+        VDB["🗄️ Vector Store (Milvus / Qdrant)"]
+    end
+
+    subgraph GRAPH["🧠 STRANDS GRAPH"]
+        ES["🧠 STRATEGIST (Qwen3-30B / Llama 70B)"]
+        COND{"⚡ +EV?"}
+        BC["📢 BROADCASTER (FunctionNode · no LLM)"]
+    end
+
+    subgraph TOOLS["🔧 TOOLS"]
+        MATH["🔢 calculate_ev_kelly()"]
+        EB["📡 EventBridge (local: console log)"]
+    end
+
+    NO["🔴 NO SIGNAL"]
+    SIGNAL["🟢 SIGNAL EMITTED"]
+
+    WS -->|"price + odds"| VG
+    VG -->|"candle_close / volatility_spike"| ES
+    AC -->|"upsert"| VDB
+    VDB -->|"query_vectordb() top-k"| ES
+    ES -->|"GO / NO_GO"| COND
+    COND -->|"NO_GO"| NO
+    COND -->|"GO ✅"| BC
+    BC --> MATH
+    BC --> EB
+    MATH -->|"ev · kelly"| BC
+    EB -->|"delivered"| SIGNAL
+    NO -->|"reset"| VG
+    SIGNAL -->|"reset"| VG
+
+    style INFRA fill:#1a1a2e,stroke:#e94560,color:#fff
+    style BG fill:#1a1a2e,stroke:#f5a623,color:#fff
+    style GRAPH fill:#0f3460,stroke:#00d2ff,color:#fff
+    style TOOLS fill:#1a1a2e,stroke:#a8e6cf,color:#fff
+    style ES fill:#16213e,stroke:#00d2ff,color:#fff
+    style COND fill:#e94560,stroke:#fff,color:#fff
+    style BC fill:#16213e,stroke:#00d2ff,color:#fff
+    style NO fill:#333,stroke:#e94560,color:#e94560
+    style SIGNAL fill:#0a3d0a,stroke:#00ff41,color:#00ff41
+    style VG fill:#16213e,stroke:#e94560,color:#fff
+    style AC fill:#16213e,stroke:#f5a623,color:#fff
+    style VDB fill:#16213e,stroke:#f5a623,color:#fff

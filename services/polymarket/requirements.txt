@@ -1,0 +1,12 @@
+# Polymarket MCP server dependencies
+# Build: docker build -f services/polymarket/Dockerfile -t polymarket-mcp .
+
+# MCP server framework
+mcp[cli]
+
+# HTTP client for Polymarket REST API
+httpx
+
+# Config
+pydantic>=2.0
+python-dotenv

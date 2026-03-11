@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=42"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "polymarket-signal-agent"
+version = "0.1.0"
+description = "Real-time trading signal agent for Polymarket — EKS multi-arch demo"
+requires-python = ">=3.11"
+dependencies = [
+    # Strands Agents SDK with LiteLLM support
+    "strands-agents[litellm]",
+    "strands-agents-tools",
+    # MCP (for services in Phase 2)
+    "mcp[cli]",
+    # Config and env
+    "python-dotenv",
+    "pydantic>=2.0",
+    # HTTP (for external API calls)
+    "httpx",
+    "websockets",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["agents*", "services*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+# ── uv ────────────────────────────────────────────────────────────────────────
+# Local setup (full monorepo):
+#   uv venv
+#   uv pip install -e ".[dev]"
+#
+# Each deployable unit has its own requirements.txt for Docker:
+#   agents/requirements.txt
+#   services/polymarket/requirements.txt
+#   services/technical_analysis/requirements.txt
+#   services/web_search/requirements.txt

@@ -1,0 +1,12 @@
+# Web Search MCP server dependencies
+# Build: docker build -f services/web_search/Dockerfile -t web-search-mcp .
+
+# MCP server framework
+mcp[cli]
+
+# Tavily search client
+tavily-python
+
+# Config
+pydantic>=2.0
+python-dotenv

@@ -1,0 +1,14 @@
+# Technical Analysis MCP server dependencies
+# Build: docker build -f services/technical_analysis/Dockerfile -t ta-mcp .
+
+# MCP server framework
+mcp[cli]
+
+# TA calculations
+pandas
+pandas-ta
+numpy
+
+# Config
+pydantic>=2.0
+python-dotenv

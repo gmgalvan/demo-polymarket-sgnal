@@ -1,0 +1,16 @@
+# Agent container dependencies
+# Build: docker build -f agents/Dockerfile -t polymarket-agent .
+
+# Strands Agents SDK with LiteLLM support
+strands-agents[litellm]
+strands-agents-tools
+
+# Config
+python-dotenv
+pydantic>=2.0
+
+# HTTP client
+httpx
+
+# WebSocket streams (Watchdog phase)
+websockets

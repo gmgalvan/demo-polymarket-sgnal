@@ -1,0 +1,49 @@
+# Exclude everything by default, then whitelist what each Dockerfile needs.
+# Each Dockerfile copies only its own directory — the rest is not needed.
+
+# Python artifacts
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.egg-info
+**/.pytest_cache
+
+# Dev environment
+.venv
+venv
+uv.lock
+
+# Secrets
+.env
+.env.*
+
+# Docs and specs (not needed in images)
+docs/
+specs/
+
+# Infra / platform (not needed in images)
+infra/
+platform/
+distribution/
+
+# Tests (not needed in images)
+tests/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Git
+.git/
+.gitignore
+
+# Model artifacts
+*.bin
+*.safetensors
+*.gguf
+*.pt
+*.onnx
+models/
+*-neuron/

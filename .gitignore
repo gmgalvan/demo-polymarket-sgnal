@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+uv.lock
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Terraform
+infra/**/.terraform/
+infra/**/*.tfstate
+infra/**/*.tfstate.backup
+infra/**/*.tfvars
+!infra/**/*.tfvars.example
+
+# Kubernetes
+kubeconfig
+*.kubeconfig
+
+# Model artifacts
+*.bin
+*.safetensors
+*.gguf
+*.pt
+*.onnx
+models/
+
+# Logs
+*.log
+logs/
+
+# Node (if dashboard)
+node_modules/
+
+# Compiled Neuron models
+*-neuron/
+
+# Private talk materials
+docs/talk-outline.md
+docs/talk-script.md
