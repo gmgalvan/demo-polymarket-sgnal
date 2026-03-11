@@ -19,6 +19,8 @@ dependencies = [
     # HTTP (for external API calls)
     "httpx",
     "websockets",
+    # RAG / Vector DB (Phase 4)
+    "chromadb",
 ]
 
 [project.optional-dependencies]

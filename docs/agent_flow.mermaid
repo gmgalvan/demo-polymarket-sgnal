@@ -4,9 +4,10 @@ graph TD
         VG["🐕 WATCHDOG (asyncio · 24/7)"]
     end
 
-    subgraph BG["📰 BACKGROUND"]
+    subgraph BG["📰 HYBRID MEMORY (RAG)"]
+        CLI["📥 ingest_context.py (--fetch-news Tavily / --sample / stdin)"]
         AC["📰 Context Analyst (Llama 3.1 8B)"]
-        VDB["🗄️ Vector Store (Milvus / Qdrant)"]
+        VDB["🗄️ ChromaDB (local) / Amazon OpenSearch Service"]
     end
 
     subgraph GRAPH["🧠 STRANDS GRAPH"]
@@ -25,7 +26,8 @@ graph TD
 
     WS -->|"price + odds"| VG
     VG -->|"candle_close / volatility_spike"| ES
-    AC -->|"upsert"| VDB
+    CLI -->|"raw text / articles"| AC
+    AC -->|"summarize + upsert"| VDB
     VDB -->|"query_vectordb() top-k"| ES
     ES -->|"GO / NO_GO"| COND
     COND -->|"NO_GO"| NO
@@ -34,6 +36,7 @@ graph TD
     BC --> EB
     MATH -->|"ev · kelly"| BC
     EB -->|"delivered"| SIGNAL
+    SIGNAL -->|"auto-ingest signal_log"| AC
     NO -->|"reset"| VG
     SIGNAL -->|"reset"| VG
 
@@ -47,5 +50,6 @@ graph TD
     style NO fill:#333,stroke:#e94560,color:#e94560
     style SIGNAL fill:#0a3d0a,stroke:#00ff41,color:#00ff41
     style VG fill:#16213e,stroke:#e94560,color:#fff
+    style CLI fill:#16213e,stroke:#f5a623,color:#fff
     style AC fill:#16213e,stroke:#f5a623,color:#fff
     style VDB fill:#16213e,stroke:#f5a623,color:#fff

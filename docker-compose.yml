@@ -1,9 +1,10 @@
-# Local development: runs the 3 MCP servers
+# Local development: runs the 3 MCP servers + ChromaDB vector store
 # The agents container runs separately (or directly via python demo/trigger_local.py)
 #
 # Usage:
-#   docker compose up                    # start all MCP servers
+#   docker compose up                    # start all services
 #   docker compose up technical-analysis # start only one
+#   docker compose up chromadb           # start only vector DB
 #   docker compose logs -f polymarket    # tail logs
 
 services:
@@ -46,3 +47,19 @@ services:
       - PYTHONUNBUFFERED=1
       - TAVILY_API_KEY=${TAVILY_API_KEY:-}
     restart: unless-stopped
+
+  chromadb:
+    image: chromadb/chroma:latest
+    ports:
+      - "8004:8000"
+    volumes:
+      - ./data/chroma:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v2/heartbeat"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

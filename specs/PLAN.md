@@ -46,20 +46,29 @@ Notes:
 - [x] Connect Watchdog → Graph in a loop
 - [x] Real WebSocket mode (Binance + Polymarket)
 
-### PHASE 4 — RAG + Vector DB
-- [ ] `services/rag/` — local RAG service with Weaviate integration (open source for dev)
-- [ ] `agents/strategist/tools_rag.py` — `query_vectordb(query, top_k)` tool for the Strategist
-- [ ] Add RAG toggle in config (`USE_RAG=true/false`) and wire into `build_strategist()`
-- [ ] `scripts/ingest_context.py` — ingest historical market context, past signals, and news summaries into vector DB
-- [ ] Add `VectorStore` abstraction layer (`upsert`, `query`, `delete`) to avoid vendor lock-in
-- [ ] Implement `WeaviateVectorStore` for local development
-- [ ] Implement `OpenSearchVectorStore` for AWS deployment
-- [ ] Config switch (`VECTOR_BACKEND=weaviate|opensearch`) with same schema/metadata contract
-- [ ] Keep embedding model + similarity metric consistent across backends for retrieval parity
-- [ ] Update Strategist prompt to require RAG query before final decision
-- [ ] Add tests for RAG retrieval quality and graph integration with/without RAG
-- [ ] Add backend parity tests (`top_k` + filters) for Weaviate vs OpenSearch
-- [ ] Document migration path: local Weaviate → OpenSearch on AWS
+### PHASE 4 — RAG + Vector DB + Context Analyst
+- [x] `services/vectorstore/base.py` — Abstract `VectorStore` interface (`upsert`, `query`, `delete`)
+- [x] `services/vectorstore/chroma.py` — `ChromaVectorStore` (local dev, in-process, no server)
+- [x] `services/vectorstore/factory.py` — `get_vector_store()` singleton (VECTOR_BACKEND env var)
+- [x] `agents/context_analyst/agent.py` — Context Analyst Strands Agent (FAST_MODEL = Haiku/Llama 3.1 8B); `ingest_context(raw_text, asset, source)` async function
+- [x] `agents/strategist/tools_rag.py` — `query_vectordb(query, top_k)` native `@tool` for the Strategist
+- [x] Wire `query_vectordb` into `build_strategist()` when `USE_RAG=true`
+- [x] `STRATEGIST_SYSTEM_PROMPT_RAG` — updated prompt that requires RAG query before deciding
+- [x] `USE_RAG`, `VECTOR_BACKEND`, `CHROMA_PATH` in `config.py` and `.env.example`
+- [x] `agents/context_analyst/ingest_context.py` — CLI to run Context Analyst (manual/cron); `--sample` flag for built-in test data
+- [x] `chromadb` added to `pyproject.toml`
+- [ ] Add `MilvusVectorStore` for EKS (Milvus via Helm)
+- [ ] Add `OpenSearchVectorStore` for EKS (OpenSearch Serverless alternative)
+- [ ] Config switch parity tests (`top_k` + metadata filters) across backends
+- [ ] Background loop for Context Analyst (asyncio task running inside Watchdog, periodic re-ingestion)
+- [ ] Tests: RAG retrieval quality, graph integration with/without RAG
+
+Notes:
+- Local: `VECTOR_BACKEND=chroma` (default) — ChromaDB PersistentClient, no docker server needed
+- EKS: swap to `VECTOR_BACKEND=milvus` or `opensearch` — same agent code, only env var changes
+- Embeddings: ChromaDB default (sentence-transformers/all-MiniLM-L6-v2, ~80MB, cached after first run)
+- Context Analyst uses FAST_MODEL — locally Claude Haiku, on EKS Llama 3.1 8B via vLLM Inferentia
+- Strategist uses REASONING_MODEL — locally Claude Haiku/Sonnet, on EKS Qwen3-30B/Llama 70B
 
 ---
 

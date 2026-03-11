@@ -1,6 +1,6 @@
 # Agent Patterns with Strands Agents SDK
 
-> **Status: Phases 1–3 implemented locally.** Phase 4 (RAG) is planned. EKS deployment is pending.
+> **Status: Phases 1–4 implemented locally.** EKS deployment is pending.
 
 ## Overview
 
@@ -173,7 +173,7 @@ estratega = Agent(
 )
 ```
 
-Note: `query_vectordb` (RAG) is planned for Phase 4. Currently the Estratega uses MCP tools for live data and a `get_historical_context` stub when `USE_MCP=false`.
+Note: Set `USE_RAG=true` to enable RAG — the Strategist will call `query_vectordb()` before deciding. Requires `ingest_context.py` to have been run first. When `USE_MCP=false`, falls back to `get_historical_context` stub.
 
 ### Structured Output
 
@@ -392,38 +392,84 @@ WebSockets ──► Vigía ──► Graph ──► Estratega ──► Mensaj
 
 ## Background Component: Analista de Contexto (Memory Builder)
 
-A separate Strands agent running as an independent Kubernetes Deployment. Not part of the Graph.
+Not part of the Graph. Feeds the vector database that the Estratega queries via `query_vectordb()`.
 
-### What It Does
+### Hybrid Memory Strategy
 
-1. Periodically scrapes crypto news (via HTTP tool)
-2. Evaluates past signal performance (via database tool)
-3. Generates embeddings and upserts them into the vector database
-4. This feeds the RAG that the Estratega queries
+Two paths to build the vector DB, used together:
+
+| Path | When | Source |
+|------|------|--------|
+| **CLI ingest** | Before running the agent | `ingest_context.py --fetch-news` → Tavily API → real BTC news |
+| **Auto-ingest** | After every GO signal | Watchdog calls `ingest_context()` with signal context → `signal_log` entry |
+
+The CLI builds historical context before the first cycle. Auto-ingest builds memory over time: past GO signals, price levels, setups that worked. This is how the system learns what setups actually produce positive EV.
+
+**Embeddings per environment:**
+
+| Environment | Who generates embeddings | How |
+|-------------|------------------------|-----|
+| Local | ChromaDB built-in | ONNX model `all-MiniLM-L6-v2`, automatic |
+| EKS | LiteLLM gateway `/embeddings` | `POST litellm-gateway:4000/embeddings` → any configured embedding model (`nomic-embed-text`, `text-embedding-ada-002`, etc.) |
+
+The same LiteLLM gateway already used for chat completions also handles embeddings — no extra pods or services needed on EKS.
 
 ### Implementation
 
 ```python
 from strands import Agent
-from strands.models.ollama import OllamaModel
+from strands.models.litellm import LiteLLMModel
+from services.vectorstore.factory import get_vector_store
 
-fast_model = OllamaModel(host="http://ollama-fast:11434", model_id="llama3.1:8b")
-
-analista = Agent(
-    name="analista_contexto",
-    model=fast_model,
-    system_prompt="Analyze crypto news and extract key insights for BTC trading...",
-    tools=[http_request, upsert_vectordb, evaluate_past_signals],
+# LOCAL: Claude Haiku via Anthropic  |  EKS: Llama 3.1 8B via LiteLLM → vLLM
+model = LiteLLMModel(
+    client_args={"api_key": ANTHROPIC_API_KEY},
+    model_id="anthropic/claude-haiku-4-5-20251001",
 )
 
-# External loop (not inside Strands)
-async def background_loop():
-    while True:
-        analista("Find and process the latest BTC news and update the knowledge base")
-        await asyncio.sleep(300)  # Every 5 minutes
+analista = Agent(
+    name="context_analyst",
+    model=model,
+    system_prompt="Summarize the key trading insights from this text...",
+)
+
+async def ingest_context(raw_text: str, asset: str = "BTC", source: str = "manual") -> str:
+    """Summarize raw text and upsert into ChromaDB."""
+    result = await analista.invoke_async(f"Analyze and summarize:\n\n{raw_text}")
+    summary = str(result)
+    vs = get_vector_store()
+    doc_id = f"{asset}_{source}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+    vs.upsert(doc_id=doc_id, text=summary, metadata={"asset": asset, "source": source})
+    return summary
 ```
 
 Uses a **small, fast model** (8B) because it's doing lightweight summarization, not deep reasoning.
+
+### CLI Usage
+
+```bash
+# Fetch REAL news from Tavily and ingest
+./.venv/bin/python agents/context_analyst/ingest_context.py --fetch-news
+
+# Ingest sample contexts (no API key needed)
+./.venv/bin/python agents/context_analyst/ingest_context.py --sample
+
+# Ingest custom text
+./.venv/bin/python agents/context_analyst/ingest_context.py --asset BTC --source news \
+  --text "BTC ETF net inflows +$420M in 24h..."
+```
+
+### Auto-Ingest Loop
+
+When `USE_RAG=true` and the Strategist says GO, the Watchdog spawns a background task:
+
+```python
+# In run_watchdog_graph_loop — fires after each GO decision
+if decision.decision == "GO":
+    asyncio.create_task(_auto_ingest_signal(decision=decision, state=state))
+```
+
+This runs as fire-and-forget (never blocks the main loop). Each GO signal becomes a `signal_log` entry in ChromaDB — the next time a similar setup appears, the Strategist retrieves it via RAG.
 
 ---
 
@@ -474,4 +520,4 @@ See `docs/agent_flow.mermaid` for the visual flow diagram.
 | El Estratega (Strategist) | Calls LLM via LiteLLM → vLLM (GPU or Inferentia) | Yes | ✅ Implemented (Phase 1-2) |
 | Arista Condicional (`has_positive_ev`) | Inside Graph (pure Python) | No | ✅ Implemented (Phase 1) |
 | Broadcaster (`BroadcasterNode`) | ARM node (Graviton) | No | ✅ Implemented (Phase 1) |
-| Analista de Contexto | Calls LLM via LiteLLM → vLLM | Yes (small model) | ⏳ Phase 4 (RAG) |
+| Analista de Contexto | Calls LLM via LiteLLM → vLLM | Yes (small model) | ✅ Phase 4 |

@@ -23,6 +23,8 @@ The agent analyzes BTC, ETH, and SOL on 5-minute and 15-minute timeframes, gener
 | Model Serving | vLLM (CUDA + Neuron SDK) |
 | Model Gateway | LiteLLM (primary), Envoy AI Gateway (alternative) |
 | Reasoning Model | Qwen3-30B / Llama 3.1 70B (quantized) |
+| Vector Store (local) | ChromaDB in-process (all-MiniLM-L6-v2 embeddings via ONNX) |
+| Vector Store (EKS) | Amazon OpenSearch Service + LiteLLM `/embeddings` endpoint |
 | Signal Distribution | Amazon EventBridge |
 | Agent Observability | LangFuse (via OpenTelemetry) |
 | Infra Observability | Prometheus + Grafana |
@@ -110,8 +112,16 @@ Only 2 out of 14 components need expensive GPU or Inferentia hardware. The rest 
 │   └── agent_flow.mermaid # Agent flow diagram (Vigía → Estratega → Mensajero)
 ├── infra/                 # EKS cluster, node pools, device plugins
 ├── platform/              # LiteLLM gateway, vLLM deployments, observability
-├── agents/                # Strands orchestrator agent and native tools
-├── services/              # MCP servers (Polymarket, TA, web search)
+├── agents/
+│   ├── strategist/        # Reasoning agent + prompts + RAG tool
+│   ├── broadcaster/       # Deterministic EV/Kelly FunctionNode
+│   ├── watchdog/          # asyncio WebSocket monitor
+│   └── context_analyst/   # Background RAG agent + ingest CLI
+├── services/
+│   ├── polymarket/        # Polymarket MCP server
+│   ├── technical_analysis/# TA indicators MCP server
+│   ├── web_search/        # Tavily web search MCP server
+│   └── vectorstore/       # VectorStore abstraction (Chroma/Milvus/OpenSearch)
 ├── distribution/          # EventBridge rules and subscriber functions
 └── demo/                  # Demo scripts and utilities
 ```
@@ -130,31 +140,55 @@ Required in `.env`:
 - `ANTHROPIC_API_KEY`
 - `TAVILY_API_KEY` (recommended for web-search MCP)
 
-### 2) Start MCP servers (for `--use-mcp true`)
+### 2) Start MCP servers + ChromaDB
 
 ```bash
 docker compose up -d
 docker compose ps
 ```
 
-### 3) Run the loop
+Services started: `polymarket` (8001), `technical-analysis` (8002), `web-search` (8003), `chromadb` (8004).
 
-Mock loop (no network required):
+### 3) Ingest context into vector DB (Phase 4 / RAG)
+
+```bash
+# Option A — fetch REAL BTC news from Tavily (requires TAVILY_API_KEY in .env)
+./.venv/bin/python agents/context_analyst/ingest_context.py --fetch-news
+
+# Option B — ingest built-in sample contexts (works without API keys)
+./.venv/bin/python agents/context_analyst/ingest_context.py --sample
+
+# Option C — ingest custom text
+./.venv/bin/python agents/context_analyst/ingest_context.py --asset BTC --source news --text "BTC broke $85k..."
+```
+
+> **Hybrid memory**: `--fetch-news` pulls real Tavily articles into ChromaDB as historical context. Once the agent loop is running with `USE_RAG=true`, every GO signal is automatically ingested as a `signal_log` entry — the system builds memory of what setups actually worked.
+
+### 4) Run the agent
+
+**Quick single shot** (hardcoded scenario, no arguments needed):
+
+```bash
+# Minimal — no MCP, no RAG
+./.venv/bin/python demo/trigger_local.py
+
+# With RAG (reads from ChromaDB)
+USE_RAG=true ./.venv/bin/python demo/trigger_local.py
+```
+
+**Watchdog loop** (continuous, mock data):
 
 ```bash
 ./.venv/bin/python demo/run_watchdog_loop.py --mode mock --max-events 3 --use-mcp false
+
+# With RAG
+USE_RAG=true ./.venv/bin/python demo/run_watchdog_loop.py --mode mock --max-events 3 --use-mcp false
 ```
 
-Live WebSocket loop (Binance + Polymarket, MCP enabled):
+**Live WebSocket loop** (real Binance + Polymarket):
 
 ```bash
-./.venv/bin/python demo/run_watchdog_loop.py --mode websocket --use-mcp true --max-events 1
-```
-
-Long-running live mode:
-
-```bash
-./.venv/bin/python demo/run_watchdog_loop.py --mode websocket --use-mcp true
+USE_RAG=true ./.venv/bin/python demo/run_watchdog_loop.py --mode websocket --use-mcp true
 ```
 
 ### 4) Log tracking (services + agent)
@@ -212,12 +246,12 @@ docker compose logs --no-color > logs/mcp-services.log
 
 ## Status
 
-✅ **Implemented locally through Phase 3**
+✅ **Implemented locally through Phase 4**
 
-- Phase 1: Graph core
-- Phase 2: MCP servers
+- Phase 1: Graph core (Strategist → Broadcaster)
+- Phase 2: MCP servers (Polymarket, Technical Analysis, Web Search)
 - Phase 3: Watchdog + full loop (mock + websocket)
-- Phase 4 (RAG + vector DB abstraction) is planned in `specs/PLAN.md`
+- Phase 4: RAG + Context Analyst + ChromaDB vector store
 
 ## References
 

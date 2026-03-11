@@ -1,6 +1,6 @@
 # Components
 
-> **Status: Phases 1–3 implemented locally.** Phase 4 (RAG) is planned. EKS deployment is pending.
+> **Status: Phases 1–4 implemented locally.** EKS deployment is pending.
 
 ## Overview
 
@@ -317,6 +317,8 @@ Bollinger: Lower band
 | Watchdog (El Vigía) | ❌ No | ARM node | Cheap | ✅ Phase 3 |
 | Strategist (El Estratega) | ✅ Yes (main consumer) | ARM node (process) + GPU/Inferentia (inference) | Cheap process + Expensive LLM calls | ✅ Phase 1-2 |
 | Broadcaster (BroadcasterNode) | ❌ No | ARM node | Free (pure math) | ✅ Phase 1 |
+| Context Analyst | ✅ Yes (small model) | ARM node (process) + GPU/Inferentia (inference) | Cheap — lightweight summarization | ✅ Phase 4 |
+| ChromaDB / Amazon OpenSearch Service (VectorStore) | ❌ No | In-process (local) / AWS managed service (EKS) | Free locally / pay-per-use | ✅ Phase 4 (local) / ⏳ EKS |
 | MCP: Polymarket | ❌ No | ARM node | Cheap | ✅ Phase 2 |
 | MCP: Technical Analysis | ❌ No | ARM node | Cheap | ✅ Phase 2 |
 | MCP: Web Search | ❌ No | ARM node | Cheap | ✅ Phase 2 |
@@ -328,19 +330,23 @@ Bollinger: Lower band
 | EventBridge | ❌ No | Serverless | Pay-per-event | ⏳ EKS |
 | Telegram Bot Lambda | ❌ No | Serverless | Pay-per-invocation | ⏳ EKS |
 
-**The takeaway:** Only 2 out of 13 components need expensive accelerated hardware. The rest run on ARM (~$0.04/hr) or serverless (pay-per-event). This is the cost optimization story of the talk.
+**The takeaway:** Only 3 out of 15 components need expensive accelerated hardware. The rest run on ARM (~$0.04/hr) or serverless (pay-per-event). This is the cost optimization story of the talk.
 
 ---
 
 ## Communication Map
 
 ```
-Binance WS ──────────────────────────┐
-                                     │
-Polymarket WS ───────────────────────┤
-                                     ▼
-                              Watchdog (asyncio)
-                                     │ graph.invoke_async(invocation_state)
+Tavily API (external) ──► ingest_context.py ──► Context Analyst ──┐
+                          (--fetch-news CLI)     (Llama 3.1 8B)    │
+                                                                    │ upsert
+Binance WS ──────────────────────────┐                             ▼
+                                     │                       ChromaDB (local)
+Polymarket WS ───────────────────────┤                       Amazon OpenSearch Service
+                                     ▼                             │
+                              Watchdog (asyncio)                   │ query_vectordb() top-k
+                                     │ graph.invoke_async(         │
+                                     │ invocation_state)           ▼
                                      ▼
 Polymarket API (external)     Strategist (Strands Agent)  ──→ LiteLLM ──→ vLLM-GPU
        │                        ↑        ↑        ↑                  └──→ vLLM-Neuron
@@ -361,8 +367,8 @@ MCP: Tech Analysis ────────────────────�
                               Broadcaster (FunctionNode)
                               EV/Kelly math → _emit()
                                      │
-                              local: console log
-                              EKS:   EventBridge
+                              local: console log        ────► auto-ingest signal_log
+                              EKS:   EventBridge                 to ChromaDB
                                           │
                               ┌───────────┼───────────┐
                               ▼           ▼           ▼
@@ -371,3 +377,17 @@ MCP: Tech Analysis ────────────────────�
 
 All internal communication is HTTP/REST within the EKS cluster (or localhost in local dev).
 External dependencies: Binance WS (public), Polymarket WS + API (public), Tavily API (key required).
+
+**Hybrid memory (RAG):** Tavily news is ingested via CLI before running the loop. Each GO signal
+is automatically ingested as `signal_log` during the loop. The Strategist queries ChromaDB at the
+start of each cycle to retrieve relevant historical context before making its GO/NO_GO decision.
+
+**VectorStore backends:** ChromaDB (local in-process, no infrastructure needed) → Amazon OpenSearch
+Service (EKS, `VECTOR_BACKEND=opensearch`). AWS managed: no cluster to operate, just an endpoint.
+
+**Embeddings on EKS:** The LiteLLM gateway (already in the architecture) exposes a `/embeddings`
+endpoint. `OpenSearchVectorStore` calls `POST litellm-gateway:4000/embeddings` to convert text →
+vector before upsert/query. LiteLLM routes to whatever embedding model is configured
+(e.g., `nomic-embed-text` on vLLM, or `text-embedding-ada-002`). No extra infrastructure.
+
+The swap local → EKS is a one-line env var change — no agent code changes.

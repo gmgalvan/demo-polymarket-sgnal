@@ -460,7 +460,16 @@ async def run_watchdog_graph_loop(
 
         # Print root cause when any node fails (GraphResult stores per-node exceptions).
         result_map = getattr(result, "results", {}) or {}
-        _log_strategist_decision(result_map)
+        decision = _log_strategist_decision(result_map)
+
+        # Auto-ingest GO signals into the vector store for future RAG retrieval.
+        # This builds a self-improving memory: past signals that fired become context
+        # for the Strategist's future decisions.
+        if decision is not None and decision.decision == "GO":
+            asyncio.create_task(
+                _auto_ingest_signal(decision=decision, state=state)
+            )
+
         for node_name, node_result in result_map.items():
             node_status = getattr(node_result, "status", None)
             node_payload = getattr(node_result, "result", None)
@@ -468,6 +477,44 @@ async def run_watchdog_graph_loop(
                 print(f"[Graph] failed_node={node_name} error={node_payload}")
 
     return processed
+
+
+async def _auto_ingest_signal(decision: "StrategistDecision", state: dict[str, Any]) -> None:
+    """Background task: ingest a GO signal into the vector store after each cycle.
+
+    This runs as a fire-and-forget task so it never blocks the main loop.
+    The Context Analyst summarizes the signal context and upserts it to ChromaDB.
+    """
+    try:
+        from agents.config import USE_RAG
+        if not USE_RAG:
+            return
+
+        from agents.context_analyst.agent import ingest_context
+
+        asset = state.get("asset", "BTC")
+        ohlcv = state.get("ohlcv", {})
+        odds = state.get("polymarket_odds", "?")
+        timestamp = state.get("timestamp", "")
+
+        raw_text = (
+            f"GO signal fired for {asset} on {timestamp}. "
+            f"OHLCV: open={ohlcv.get('open')}, high={ohlcv.get('high')}, "
+            f"low={ohlcv.get('low')}, close={ohlcv.get('close')}, "
+            f"volume={ohlcv.get('volume')}. "
+            f"Polymarket odds: {odds}. "
+            f"Strategist decision: {decision.decision}, "
+            f"direction={decision.direction}, "
+            f"probability={decision.probability:.2f}, "
+            f"confidence={decision.confidence:.2f}. "
+            f"Reasoning: {decision.reasoning}"
+        )
+
+        await ingest_context(raw_text=raw_text, asset=asset, source="signal_log")
+        print(f"[Watchdog] Auto-ingested GO signal into vector store ({asset})")
+    except Exception as exc:
+        # Never crash the main loop because of a background ingest failure.
+        print(f"[Watchdog] Auto-ingest failed (non-critical): {exc}")
 
 
 def default_mock_states(asset: str = "BTC", timeframe: str = "15min", bankroll: float = DEFAULT_BANKROLL_USD) -> list[dict[str, Any]]:
@@ -508,17 +555,17 @@ def default_mock_states(asset: str = "BTC", timeframe: str = "15min", bankroll: 
     ]
 
 
-def _log_strategist_decision(result_map: Mapping[str, Any]) -> None:
-    """Log structured Strategist decision (GO/NO_GO) when available."""
+def _log_strategist_decision(result_map: Mapping[str, Any]) -> "StrategistDecision | None":
+    """Log structured Strategist decision (GO/NO_GO) when available. Returns the decision."""
     strategist_node = result_map.get("strategist")
     if strategist_node is None:
-        return
+        return None
 
     payload = getattr(strategist_node, "result", None)
     decision = _parse_strategist_decision(payload)
     if decision is None:
         print("[Strategist] decision=UNKNOWN")
-        return
+        return None
 
     print(
         "[Strategist] "
@@ -527,6 +574,7 @@ def _log_strategist_decision(result_map: Mapping[str, Any]) -> None:
         f"probability={decision.probability:.2f} "
         f"confidence={decision.confidence:.2f}"
     )
+    return decision
 
 
 def _parse_strategist_decision(payload: Any) -> StrategistDecision | None:

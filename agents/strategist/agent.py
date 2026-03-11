@@ -28,10 +28,15 @@ from agents.config import (
     REASONING_MODEL,
     SEARCH_MCP_URL,
     TA_MCP_URL,
+    USE_RAG,
     get_model_client_args,
 )
 from agents.models import StrategistDecision
-from agents.strategist.prompts import STRATEGIST_SYSTEM_PROMPT, STRATEGIST_SYSTEM_PROMPT_STUB
+from agents.strategist.prompts import (
+    STRATEGIST_SYSTEM_PROMPT,
+    STRATEGIST_SYSTEM_PROMPT_RAG,
+    STRATEGIST_SYSTEM_PROMPT_STUB,
+)
 
 
 # ── Native tools (always available) ───────────────────────────────────────────
@@ -105,6 +110,16 @@ def build_strategist() -> Agent:
             ta_mcp = MCPClient(lambda: sse_client(url=TA_MCP_URL))
             polymarket_mcp = MCPClient(lambda: sse_client(url=POLYMARKET_MCP_URL))
             search_mcp = MCPClient(lambda: sse_client(url=SEARCH_MCP_URL))
+
+            if USE_RAG:
+                from agents.strategist.tools_rag import query_vectordb
+                return Agent(
+                    name="strategist",
+                    model=model,
+                    system_prompt=STRATEGIST_SYSTEM_PROMPT_RAG,
+                    tools=[get_market_snapshot, query_vectordb, ta_mcp, polymarket_mcp, search_mcp],
+                    structured_output_model=StrategistDecision,
+                )
 
             return Agent(
                 name="strategist",

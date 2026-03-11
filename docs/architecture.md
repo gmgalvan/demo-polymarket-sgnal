@@ -1,6 +1,6 @@
 # Architecture Decisions
 
-> **Status: Phases 1–3 implemented locally.** Phase 4 (RAG) is planned. EKS deployment is pending.
+> **Status: Phases 1–4 implemented locally.** EKS deployment is pending.
 
 ## Overview
 
@@ -267,7 +267,7 @@ These are things we intentionally did NOT include and why:
 |---|---|
 | **Swarm pattern** | The demo uses the Graph pattern (Vigía → Estratega → Mensajero) which provides deterministic routing. Swarm (dynamic agent handoffs) adds unpredictability that's unnecessary here. See `docs/agent-patterns.md`. |
 | **Model training/fine-tuning** | We use pre-trained models. Training is a different talk. |
-| **RAG with vector database** | Would require deploying Milvus/Qdrant, embedding models, and ingestion pipelines. Adds infrastructure complexity without advancing the multi-arch narrative. The MCP servers provide the agent's context instead. RAG is part of the production design in `docs/agent-patterns.md`. |
+| **Amazon OpenSearch Service on EKS** | RAG is implemented locally with ChromaDB (in-process, no server needed). On EKS: Amazon OpenSearch Service (managed) + LiteLLM `/embeddings` endpoint — the same gateway already used for chat, no extra infra. The demo talks about the hardware abstraction story, not vector DB operations. |
 | **Distributed processing (Ray/KubeRay)** | No massively parallel workloads in this demo. |
 | **Advanced model serving (KServe)** | Would add abstraction that obscures the Kubernetes mechanics we want to teach. Mentioned as a "next step" in the talk. |
 | **Service mesh (Istio)** | Not needed at this demo's scale. Relevant when adding business microservices beyond AI. |

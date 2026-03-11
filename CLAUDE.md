@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-> **Status: Draft** — This is a design document. The code and infrastructure have not been implemented yet. Everything described here is the intended architecture.
+> **Status: Phases 1–4 implemented locally.** EKS deployment is pending.
 
 ## Development Rules
 

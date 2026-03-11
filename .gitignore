@@ -1,5 +1,6 @@
 # Python
 __pycache__/
+.pytest_cache/
 uv.lock
 *.py[cod]
 *$py.class
@@ -49,6 +50,9 @@ models/
 # Logs
 *.log
 logs/
+
+# Vector DB local storage
+data/
 
 # Node (if dashboard)
 node_modules/
