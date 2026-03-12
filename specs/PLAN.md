@@ -70,6 +70,90 @@ Notes:
 - Context Analyst uses FAST_MODEL — locally Claude Haiku, on EKS Llama 3.1 8B via vLLM Inferentia
 - Strategist uses REASONING_MODEL — locally Claude Haiku/Sonnet, on EKS Qwen3-30B/Llama 70B
 
+### PHASE 5 — GitOps + ArgoCD (EKS Deploy/Operate Bridge)
+- [ ] Define GitOps repo structure (platform, inference, apps) and environment overlays (dev/stage/prod)
+- [ ] Bootstrap ArgoCD on EKS with App-of-Apps pattern
+- [ ] Create ArgoCD Applications for:
+  - [ ] inference backends (vLLM GPU / Inferentia)
+  - [ ] model gateway (LiteLLM / Envoy option)
+  - [ ] agent stack (Watchdog/Strategist/Broadcaster)
+  - [ ] observability stack (Prometheus/Grafana/LangFuse)
+- [ ] Configure sync waves and health checks so dependencies deploy in correct order
+- [ ] Define rollout/rollback strategy (manual sync, automated rollback criteria, rollback runbook)
+- [ ] Enable drift detection and alerting workflow
+- [ ] Define ArgoCD Projects/RBAC boundaries for platform vs app teams
+- [ ] Add a live-demo flow: commit -> ArgoCD sync -> verify -> rollback
+
+Notes:
+- This phase is the SDLC bridge in production terms: code-to-cluster traceability and safe operations.
+- Scope is intentionally operational (deploy + operate), not full CI pipeline design.
+
+### PHASE 6 (OPTIONAL) — Vision Power-Up on L40S + Text Lane on inf2
+- [ ] Define a mini visual use case for the demo (dashboard/chart screenshot analysis)
+- [ ] Add a VLM inference path pinned to L40S for image understanding and anomaly cues
+- [ ] Implement anomaly signals from visual input (e.g., abrupt trend shape / dashboard red flags)
+- [ ] Keep text-only/batch reasoning lane on inf2 to optimize cost
+- [ ] Add simple routing policy:
+  - [ ] visual request -> L40S lane
+  - [ ] text batch request -> inf2 lane
+- [ ] Add side-by-side metrics capture for the optional vision lane (latency/cost impact)
+- [ ] Add fallback behavior when the vision lane is unavailable
+
+Notes:
+- Optional phase for showcasing real GPU value beyond text-only inference.
+- Keep this small: one concrete visual scenario is enough for the talk.
+
+### PHASE 7 — Final Demonstration Readiness (Grand Finale)
+- [ ] Freeze demo script with exact command sequence and expected outputs
+- [ ] Prepare baseline runbooks:
+  - [ ] healthy path (normal request routing)
+  - [ ] failover path (`L40S` -> `inf2` and recovery)
+  - [ ] rollback path (ArgoCD sync/rollback)
+- [ ] Define final scorecard shown on stage:
+  - [ ] p95 latency
+  - [ ] error rate
+  - [ ] throughput/tokens per second
+  - [ ] estimated cost trend by backend
+- [ ] Record backup video with timestamps matching live-demo steps
+- [ ] Dry-run full presentation flow at least twice with timing checks
+- [ ] Prepare incident fallback matrix (what to skip if time or systems fail)
+
+Notes:
+- This is the final production-style validation phase for the meetup demo.
+- Goal: deterministic live execution with measurable outcomes.
+
+### PHASE 8 — Observability Stack (Prometheus + Grafana + DCGM)
+- [ ] Deploy Prometheus stack on EKS (Prometheus Operator / kube-prometheus-stack)
+- [ ] Deploy Grafana with preconfigured data source and dashboard folder structure
+- [ ] Enable Kubernetes core exporters:
+  - [ ] kube-state-metrics
+  - [ ] node-exporter
+  - [ ] cAdvisor/container metrics scraping
+- [ ] Enable NVIDIA GPU telemetry:
+  - [ ] Deploy `dcgm-exporter` on GPU nodes
+  - [ ] Capture GPU utilization, memory usage, temperature, power, ECC/errors
+- [ ] Enable Inferentia telemetry:
+  - [ ] Expose Neuron runtime/NeuronCore metrics to Prometheus (exporter or scrape endpoint)
+  - [ ] Track Neuron utilization, latency contribution, and memory pressure signals
+- [ ] Add inference service metrics:
+  - [ ] request count, error rate, p95/p99 latency
+  - [ ] tokens/sec or throughput proxy
+  - [ ] backend route label (`l40s` vs `inf2`)
+- [ ] Build Grafana dashboards:
+  - [ ] Executive dashboard (SLO + cost trend)
+  - [ ] Infra dashboard (GPU vs Inferentia health)
+  - [ ] Demo dashboard (live before/after failover)
+- [ ] Configure alert rules:
+  - [ ] high latency
+  - [ ] high error rate
+  - [ ] backend unavailable
+  - [ ] saturation thresholds (GPU/Neuron)
+
+Notes:
+- This phase is mandatory for the talk demo narrative (Ops HUD).
+- DCGM (`dcgm-exporter`) is the key metric source for NVIDIA L40S visibility in Grafana.
+- Use backend labels to compare `l40s` and `inf2` side-by-side in the same panels.
+
 ---
 
 ## Design Decisions
@@ -79,6 +163,7 @@ Notes:
 - **Conditional edge**: looks for `"GO"` in Strategist text (simple string check, no LLM)
 - **BroadcasterNode**: subclass of `MultiAgentBase`, implements `invoke_async`
 - **LiteLLM proxy**: `client_args={"api_base": "...", "use_litellm_proxy": True}` (not top-level `base_url`)
+- **GitOps control plane (EKS)**: ArgoCD is the deployment contract and rollback mechanism for runtime changes
 
 ---
 

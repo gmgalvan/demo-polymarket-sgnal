@@ -1,0 +1,42 @@
+flowchart TB
+    subgraph L1["Deployment - Castle Roof"]
+        D1["AI Platform"]
+        D2["AI as a Service"]
+        D3["AI-Enabled Workloads"]
+    end
+
+    subgraph L2["Env and Tools - Power-Up Room"]
+        E1["AI Frameworks\n(Tensor, PyTorch, etc.)"]
+        E2["IDE\n(Jupyter Hub)"]
+        E3["Libraries\n(NumPy, cuDNN)"]
+    end
+
+    subgraph L3["Orchestration - Game Engine"]
+        O1["Kubernetes / EKS"]
+        O2["Ray / Batch Orchestrators"]
+        O3["Other Platform Schedulers"]
+    end
+
+    subgraph L4["Compute Unit - Character Slots"]
+        C1["Containers"]
+        C2["VMs"]
+        C3["Bare Metal"]
+    end
+
+    subgraph L5["Infrastructure - Underground Pipes"]
+        subgraph S1["Storage"]
+            S11["Block"]
+            S12["File"]
+            S13["Lustre"]
+        end
+        subgraph S2["Compute"]
+            S21["CPU"]
+            S22["GPU"]
+            S23["Accelerators"]
+        end
+        subgraph S3["Networking"]
+            S31["East-West\n(RDMA / RoCE / Coherency)"]
+        end
+    end
+
+    L1 --> L2 --> L3 --> L4 --> L5
