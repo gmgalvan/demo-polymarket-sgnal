@@ -83,7 +83,7 @@ variable "install_neuron_device_plugin" {
 }
 
 variable "enable_karpenter_nodepools" {
-  description = "Whether to install Karpenter EC2NodeClass and NodePool resources after CRDs are available in the cluster."
+  description = "Whether to install Karpenter EC2NodeClass and NodePool resources."
   type        = bool
-  default     = false
+  default     = true
 }

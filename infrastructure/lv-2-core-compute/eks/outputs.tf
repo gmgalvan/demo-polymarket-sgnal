@@ -62,3 +62,8 @@ output "inferentia_instance_type" {
   description = "Configured Inferentia instance type for Neuron node group."
   value       = var.inferentia_instance_type
 }
+
+output "core_node_instance_type" {
+  description = "Configured instance type for the ARM/core node group."
+  value       = var.core_node_instance_type
+}

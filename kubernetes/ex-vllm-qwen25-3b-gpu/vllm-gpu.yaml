@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: vllm-gpu-autocomplete
+  name: vllm-gpu-qwen25
 spec:
   replicas: 1
   strategy:
     type: Recreate
   selector:
     matchLabels:
-      app: vllm-gpu-autocomplete
+      app: vllm-gpu-qwen25
   template:
     metadata:
       labels:
-        app: vllm-gpu-autocomplete
+        app: vllm-gpu-qwen25
     spec:
       nodeSelector:
         workload: gpu
@@ -27,7 +27,7 @@ spec:
           imagePullPolicy: IfNotPresent
           args:
             - --model=Qwen/Qwen2.5-3B-Instruct
-            - --served-model-name=demo-autocomplete
+            - --served-model-name=qwen25-3b-gpu
             - --host=0.0.0.0
             - --port=8000
             - --dtype=half
@@ -77,10 +77,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: vllm-gpu-autocomplete
+  name: vllm-gpu-qwen25
 spec:
   selector:
-    app: vllm-gpu-autocomplete
+    app: vllm-gpu-qwen25
   ports:
     - name: http
       port: 8000

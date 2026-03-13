@@ -148,23 +148,10 @@ variable "karpenter_namespace" {
   default     = "kube-system"
 }
 
-variable "karpenter_chart_version" {
-  description = "Karpenter Helm chart version. Set null to use latest chart."
-  type        = string
-  default     = null
-  nullable    = true
-}
-
-variable "enable_karpenter_resources" {
-  description = "Whether to install Karpenter in-cluster resources (Helm chart, NodePools, device plugins). Enable only after the EKS cluster exists and kube auth works."
-  type        = bool
-  default     = false
-}
-
-variable "enable_karpenter_nodepools" {
-  description = "Whether to install Karpenter EC2NodeClass and NodePool resources. Enable only after the Karpenter chart and CRDs are already installed."
-  type        = bool
-  default     = false
+variable "cluster_admin_principal_arns" {
+  description = "IAM principal ARNs that should have EKS cluster admin access via access entries."
+  type        = list(string)
+  default     = []
 }
 
 variable "additional_tags" {

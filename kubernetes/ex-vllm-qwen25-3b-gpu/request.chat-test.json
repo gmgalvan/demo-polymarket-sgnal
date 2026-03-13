@@ -1,0 +1,15 @@
+{
+  "model": "qwen25-3b-gpu",
+  "temperature": 0.3,
+  "max_tokens": 140,
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a concise assistant for quick model smoke tests. Always answer in 3 short bullets."
+    },
+    {
+      "role": "user",
+      "content": "Summarize why Kubernetes with Karpenter is useful for running mixed workloads across ARM, GPU, and Inferentia."
+    }
+  ]
+}

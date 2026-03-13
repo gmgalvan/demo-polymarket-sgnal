@@ -107,3 +107,9 @@ variable "common_tags" {
   description = "Common tags applied to EKS and Karpenter resources."
   type        = map(string)
 }
+
+variable "cluster_admin_principal_arns" {
+  description = "IAM principal ARNs that should have EKS cluster admin access via access entries."
+  type        = list(string)
+  default     = []
+}

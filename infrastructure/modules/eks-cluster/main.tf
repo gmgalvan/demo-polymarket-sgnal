@@ -5,6 +5,21 @@ locals {
       "karpenter.sh/discovery" = var.cluster_name
     }
   )
+
+  cluster_admin_access_entries = {
+    for principal_arn in var.cluster_admin_principal_arns :
+    "admin-${md5(principal_arn)}" => {
+      principal_arn = principal_arn
+      policy_associations = {
+        cluster_admin = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = {
+            type = "cluster"
+          }
+        }
+      }
+    }
+  }
 }
 
 module "eks" {
@@ -16,6 +31,7 @@ module "eks" {
 
   cluster_endpoint_public_access           = var.eks_endpoint_public_access
   enable_cluster_creator_admin_permissions = true
+  access_entries                           = local.cluster_admin_access_entries
 
   vpc_id     = var.vpc_id
   subnet_ids = var.subnet_ids

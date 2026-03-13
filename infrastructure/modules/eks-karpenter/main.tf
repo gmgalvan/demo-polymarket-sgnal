@@ -113,10 +113,10 @@ resource "helm_release" "neuron_device_plugin" {
   depends_on = [helm_release.karpenter]
 }
 
-resource "kubernetes_manifest" "ec2_node_class_arm" {
+resource "kubectl_manifest" "ec2_node_class_arm" {
   count = var.enable_karpenter_nodepools ? 1 : 0
 
-  manifest = {
+  yaml_body = yamlencode({
     apiVersion = "karpenter.k8s.aws/v1"
     kind       = "EC2NodeClass"
     metadata = {
@@ -155,15 +155,15 @@ resource "kubernetes_manifest" "ec2_node_class_arm" {
         }
       ]
     }
-  }
+  })
 
   depends_on = [helm_release.karpenter]
 }
 
-resource "kubernetes_manifest" "ec2_node_class_gpu" {
+resource "kubectl_manifest" "ec2_node_class_gpu" {
   count = var.enable_karpenter_nodepools ? 1 : 0
 
-  manifest = {
+  yaml_body = yamlencode({
     apiVersion = "karpenter.k8s.aws/v1"
     kind       = "EC2NodeClass"
     metadata = {
@@ -202,15 +202,15 @@ resource "kubernetes_manifest" "ec2_node_class_gpu" {
         }
       ]
     }
-  }
+  })
 
   depends_on = [helm_release.karpenter]
 }
 
-resource "kubernetes_manifest" "ec2_node_class_inferentia" {
+resource "kubectl_manifest" "ec2_node_class_inferentia" {
   count = var.enable_karpenter_nodepools ? 1 : 0
 
-  manifest = {
+  yaml_body = yamlencode({
     apiVersion = "karpenter.k8s.aws/v1"
     kind       = "EC2NodeClass"
     metadata = {
@@ -249,15 +249,15 @@ resource "kubernetes_manifest" "ec2_node_class_inferentia" {
         }
       ]
     }
-  }
+  })
 
   depends_on = [helm_release.karpenter]
 }
 
-resource "kubernetes_manifest" "node_pool_arm" {
+resource "kubectl_manifest" "node_pool_arm" {
   count = var.enable_karpenter_nodepools ? 1 : 0
 
-  manifest = {
+  yaml_body = yamlencode({
     apiVersion = "karpenter.sh/v1"
     kind       = "NodePool"
     metadata = {
@@ -300,15 +300,15 @@ resource "kubernetes_manifest" "node_pool_arm" {
         consolidateAfter    = "5m"
       }
     }
-  }
+  })
 
-  depends_on = [kubernetes_manifest.ec2_node_class_arm]
+  depends_on = [kubectl_manifest.ec2_node_class_arm]
 }
 
-resource "kubernetes_manifest" "node_pool_gpu" {
+resource "kubectl_manifest" "node_pool_gpu" {
   count = var.enable_karpenter_nodepools ? 1 : 0
 
-  manifest = {
+  yaml_body = yamlencode({
     apiVersion = "karpenter.sh/v1"
     kind       = "NodePool"
     metadata = {
@@ -359,15 +359,15 @@ resource "kubernetes_manifest" "node_pool_gpu" {
         consolidateAfter    = "10m"
       }
     }
-  }
+  })
 
-  depends_on = [kubernetes_manifest.ec2_node_class_gpu]
+  depends_on = [kubectl_manifest.ec2_node_class_gpu]
 }
 
-resource "kubernetes_manifest" "node_pool_inferentia" {
+resource "kubectl_manifest" "node_pool_inferentia" {
   count = var.enable_karpenter_nodepools ? 1 : 0
 
-  manifest = {
+  yaml_body = yamlencode({
     apiVersion = "karpenter.sh/v1"
     kind       = "NodePool"
     metadata = {
@@ -418,7 +418,7 @@ resource "kubernetes_manifest" "node_pool_inferentia" {
         consolidateAfter    = "10m"
       }
     }
-  }
+  })
 
-  depends_on = [kubernetes_manifest.ec2_node_class_inferentia]
+  depends_on = [kubectl_manifest.ec2_node_class_inferentia]
 }

@@ -88,6 +88,59 @@ This is the companion demo for the talk of the same name. It proves three things
 2. **You can connect the dots.** Use Device Plugins to expose silicon, MCP servers to connect agents to data, and LiteLLM to unify access to models.
 3. **You can ship it.** Kubernetes manifests bring your AI agents to life — regardless of the chip underneath.
 
+## Post-EKS: Console Access Fix
+
+After creating EKS, if AWS Console shows:
+
+`Your current IAM principal doesn't have access to Kubernetes objects on this cluster`
+
+run this checklist:
+
+```bash
+# 1) Verify CLI principal (local shell)
+aws sts get-caller-identity --query Arn --output text
+
+# 2) Verify Console principal (CloudShell in the SAME browser session)
+aws sts get-caller-identity --query Arn --output text
+```
+
+Important:
+- If CloudShell shows `arn:aws:iam::<account-id>:root`, your browser is logged in as root.
+- EKS access entries are principal-specific. Access granted to `user/infra` does not grant access to `root`.
+
+Grant EKS access entry + admin policy to the active principal:
+
+```bash
+aws eks create-access-entry \
+  --cluster-name 352-demo-dev-eks \
+  --region us-east-1 \
+  --principal-arn <PRINCIPAL_ARN>
+
+aws eks associate-access-policy \
+  --cluster-name 352-demo-dev-eks \
+  --region us-east-1 \
+  --principal-arn <PRINCIPAL_ARN> \
+  --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy \
+  --access-scope type=cluster
+```
+
+Validate:
+
+```bash
+aws eks describe-access-entry \
+  --cluster-name 352-demo-dev-eks \
+  --region us-east-1 \
+  --principal-arn <PRINCIPAL_ARN>
+
+aws eks list-associated-access-policies \
+  --cluster-name 352-demo-dev-eks \
+  --region us-east-1 \
+  --principal-arn <PRINCIPAL_ARN>
+```
+
+Terraform-managed access is documented in:
+- `infrastructure/lv-2-core-compute/eks/README.md`
+
 ## Cost Story
 
 Only 2 out of 14 components need expensive GPU or Inferentia hardware. The rest run on ARM nodes (~$0.04/hr) or serverless. Match the hardware to the workload.

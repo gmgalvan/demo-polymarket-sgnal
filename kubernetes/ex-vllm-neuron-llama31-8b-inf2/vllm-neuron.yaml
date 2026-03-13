@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-neuron-llama31-8b
+spec:
+  replicas: 0
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: vllm-neuron-llama31-8b
+  template:
+    metadata:
+      labels:
+        app: vllm-neuron-llama31-8b
+    spec:
+      nodeSelector:
+        workload: neuron
+      tolerations:
+        - key: aws.amazon.com/neuron
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+        - key: aws.amazon.com/neuroncore
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: vllm-neuron
+          # vLLM Neuron requires a custom image built from AWS Neuron DLC and pushed to ECR.
+          # Replace this value with your own ECR URI before scaling replicas > 0.
+          image: 023890853822.dkr.ecr.us-east-1.amazonaws.com/vllm-neuron:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - --model=meta-llama/Llama-3.1-8B-Instruct
+            - --served-model-name=llama31-8b-neuron
+            - --host=0.0.0.0
+            - --port=8000
+            - --device=neuron
+            - --max-model-len=2048
+            - --max-num-seqs=1
+            - --download-dir=/models
+          env:
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: huggingface-token
+                  key: token
+                  optional: true
+            - name: HUGGING_FACE_HUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: huggingface-token
+                  key: token
+                  optional: true
+          ports:
+            - containerPort: 8000
+              name: http
+          resources:
+            requests:
+              cpu: "1500m"
+              memory: "8Gi"
+              aws.amazon.com/neuroncore: "2"
+            limits:
+              cpu: "3"
+              memory: "12Gi"
+              aws.amazon.com/neuroncore: "2"
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 15
+            failureThreshold: 120
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: model-cache
+              mountPath: /models
+      volumes:
+        - name: model-cache
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-neuron-llama31-8b
+spec:
+  selector:
+    app: vllm-neuron-llama31-8b
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http

@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: neuron-smoke-inf2
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: neuron-smoke-inf2
+  template:
+    metadata:
+      labels:
+        app: neuron-smoke-inf2
+    spec:
+      nodeSelector:
+        workload: neuron
+      tolerations:
+        - key: aws.amazon.com/neuron
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+        - key: aws.amazon.com/neuroncore
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: neuron-smoke
+          image: hashicorp/http-echo:1.0
+          args:
+            - -text=Inferentia lane is healthy
+            - -listen=:5678
+          ports:
+            - containerPort: 5678
+              name: http
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "256Mi"
+              aws.amazon.com/neuroncore: "1"
+            limits:
+              cpu: "1"
+              memory: "512Mi"
+              aws.amazon.com/neuroncore: "1"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: neuron-smoke-inf2
+spec:
+  selector:
+    app: neuron-smoke-inf2
+  ports:
+    - name: http
+      port: 5678
+      targetPort: http

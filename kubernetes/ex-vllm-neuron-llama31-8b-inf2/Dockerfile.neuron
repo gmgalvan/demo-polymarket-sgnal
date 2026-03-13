@@ -1,0 +1,21 @@
+FROM public.ecr.aws/neuron/pytorch-inference-neuronx:2.1.2-neuronx-py310-sdk2.20.0-ubuntu20.04
+
+ARG VLLM_REF=v0.6.0
+
+# Build vLLM with Neuron support (based on AWS blog workflow).
+RUN git clone https://github.com/vllm-project/vllm.git /vllm
+WORKDIR /vllm
+RUN git checkout ${VLLM_REF}
+
+ENV VLLM_TARGET_DEVICE=neuron
+
+RUN python3 -m pip install -U -r requirements-neuron.txt
+RUN python3 -m pip install .
+
+# Extend block-size choices as in AWS reference.
+RUN sed -i "/parser.add_argument('--block-size',/ {N;N;N;N;N;s/\\[8, 16, 32\\]/[8, 16, 32, 128, 256, 512, 1024, 2048, 4096, 8192]/}" vllm/engine/arg_utils.py
+
+RUN python3 -m pip install ray
+RUN python3 -m pip install -U "triton>=3.0.0"
+
+ENTRYPOINT ["python3", "-m", "vllm.entrypoints.openai.api_server"]
