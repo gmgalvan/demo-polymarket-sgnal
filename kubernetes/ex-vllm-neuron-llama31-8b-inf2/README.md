@@ -37,23 +37,49 @@ Notes:
 - Seeing `karpenter` as `1/2` can be normal on small clusters (second replica pending due scheduling constraints).
 - `nodeclaims` should show a Neuron claim when this deployment is enabled.
 
-## 1) Build and push Neuron image
+## 1) Build and push Neuron image (recommended: ephemeral EC2 builder)
 
 Run from this folder:
 
 ```bash
 cd kubernetes/ex-vllm-neuron-llama31-8b-inf2
-AWS_REGION=us-east-1 ECR_REPO=vllm-neuron IMAGE_TAG=latest VLLM_REF=v0.6.0 ./build-and-push-ecr.sh
+AWS_REGION=us-east-1 \
+ECR_REPO=vllm-neuron \
+IMAGE_TAG=latest \
+VLLM_REF=v0.6.0 \
+INSTANCE_TYPE=m7i.4xlarge \
+VOLUME_SIZE_GB=350 \
+./build-and-push-ecr-ec2.sh
 ```
 
 Included files:
 - `Dockerfile.neuron`
-- `build-and-push-ecr.sh`
+- `build-and-push-ecr-ec2.sh` (recommended)
+- `build-and-push-ecr.sh` (local Docker fallback)
 
-Build notes:
-- `build-and-push-ecr.sh` auto-creates the ECR repository if it does not exist.
-- This build is heavy (large Neuron base image + vLLM compile path). Keep enough Docker disk space before starting.
-- If your Windows `C:` drive is nearly full, Docker Desktop builds may fail or stall even when WSL `/` has free space.
+What `build-and-push-ecr-ec2.sh` does:
+- Creates ECR repo if missing
+- Launches a temporary EC2 builder with large disk
+- Builds and pushes the image to ECR
+- Self-terminates the builder instance after successful push
+- Cleans up temporary IAM role/profile + security group
+
+IAM permissions needed for this script:
+- `ec2:*` for launching/terminating the temporary builder and SG
+- `iam:*` for temporary role/profile creation and cleanup
+- `ecr:*` for repository/image push
+- `ssm:GetParameter` to resolve latest Amazon Linux AMI
+
+Useful overrides:
+- `SUBNET_ID=subnet-xxxx` (force subnet)
+- `WAIT_TIMEOUT_MIN=240` (max wait before force terminate)
+- `KEEP_BUILDER_RESOURCES=true` (debug mode; no auto cleanup)
+
+Local fallback (uses your local Docker Desktop/WSL storage):
+
+```bash
+AWS_REGION=us-east-1 ECR_REPO=vllm-neuron IMAGE_TAG=latest VLLM_REF=v0.6.0 ./build-and-push-ecr.sh
+```
 
 Confirm the image exists in ECR:
 
@@ -119,6 +145,12 @@ If `aws ecr list-images` returns `[]`, the image was not pushed yet. Re-run buil
 ```bash
 docker system df
 df -h
+```
+
+For EC2 builder flow, also check:
+
+```bash
+aws ec2 describe-instances --filters Name=tag:ManagedBy,Values=build-and-push-ecr-ec2.sh --region us-east-1
 ```
 
 If pod is `Pending`:

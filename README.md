@@ -141,6 +141,12 @@ aws eks list-associated-access-policies \
 Terraform-managed access is documented in:
 - `infrastructure/lv-2-core-compute/eks/README.md`
 
+## Full Cleanup
+
+For full teardown in safe order (`Kubernetes -> lv-3 -> lv-2 -> lv-0 -> ECR -> Docker local`), use:
+
+- `docs/CLEANUP.md`
+
 ## Cost Story
 
 Only 2 out of 14 components need expensive GPU or Inferentia hardware. The rest run on ARM nodes (~$0.04/hr) or serverless. Match the hardware to the workload.
