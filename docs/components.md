@@ -138,7 +138,7 @@ The agent layer uses the **Strands Graph pattern** with three components. See `d
 
 **What it is:** Pure asyncio Python script — NOT a Strands agent.
 
-**Responsibility:** Monitors Binance WebSocket (BTC klines) and Polymarket WebSocket (odds) 24/7. Fires `graph.invoke_async()` when `candle_close` (Binance `kline["x"]=True`) or `volatility_spike` (intra-candle move ≥ threshold) is detected. Passes `invocation_state` with OHLCV + odds + bankroll to the Graph.
+**Responsibility:** Monitors Coinbase Advanced Trade WebSocket (BTC 5-minute candles, default) or Binance WebSocket (optional fallback), plus Polymarket WebSocket (odds) 24/7. Fires `graph.invoke_async()` on `candle_close` or `volatility_spike` (intra-candle move ≥ threshold). Passes `invocation_state` with OHLCV + odds + bankroll to the Graph.
 
 **Where it runs:** ARM node. No GPU needed — it's just asyncio WebSocket listeners.
 
@@ -284,7 +284,7 @@ The agent layer uses the **Strands Graph pattern** with three components. See `d
 
 **Message format:**
 ```
-🟢 BUY Signal — BTC 5min
+🟢 GO Signal — BTC 15min (UP)
 Confidence: 82% | EV: +12.5% | Kelly: 14%
 
 📊 Indicators:
@@ -340,8 +340,8 @@ Bollinger: Lower band
 Tavily API (external) ──► ingest_context.py ──► Context Analyst ──┐
                           (--fetch-news CLI)     (Llama 3.1 8B)    │
                                                                     │ upsert
-Binance WS ──────────────────────────┐                             ▼
-                                     │                       ChromaDB (local)
+Coinbase WS (default) ───────────────┐                             ▼
+  (or Binance WS fallback)           │                       ChromaDB (local)
 Polymarket WS ───────────────────────┤                       Amazon OpenSearch Service
                                      ▼                             │
                               Watchdog (asyncio)                   │ query_vectordb() top-k
@@ -376,7 +376,7 @@ MCP: Tech Analysis ────────────────────�
 ```
 
 All internal communication is HTTP/REST within the EKS cluster (or localhost in local dev).
-External dependencies: Binance WS (public), Polymarket WS + API (public), Tavily API (key required).
+External dependencies: Coinbase WS (public, default) or Binance WS (public, optional), Polymarket WS + API (public), Tavily API (key required).
 
 **Hybrid memory (RAG):** Tavily news is ingested via CLI before running the loop. Each GO signal
 is automatically ingested as `signal_log` during the loop. The Strategist queries ChromaDB at the

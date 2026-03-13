@@ -34,6 +34,13 @@ infra/**/*.tfstate
 infra/**/*.tfstate.backup
 infra/**/*.tfvars
 !infra/**/*.tfvars.example
+infrastructure/**/.terraform/
+infrastructure/**/*.tfstate
+infrastructure/**/*.tfstate.backup
+infrastructure/**/*.tfvars
+!infrastructure/**/*.tfvars.example
+infrastructure/**/crash.log
+infrastructure/**/.terraform.tfstate.lock.info
 
 # Kubernetes
 kubeconfig

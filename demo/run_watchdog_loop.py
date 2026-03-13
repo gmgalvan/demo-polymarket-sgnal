@@ -12,6 +12,7 @@ import asyncio
 import os
 
 from agents.graph import build_graph
+from agents.logging_utils import log_line
 from agents.watchdog import Watchdog, WatchdogConfig, run_watchdog_graph_loop
 
 
@@ -43,9 +44,9 @@ async def _main() -> None:
     graph = build_graph()
     watchdog = Watchdog(config=config)
 
-    print(f"Starting loop in {config.mode} mode (max_events={args.max_events})")
+    log_line("runner", "watchdog-loop", f"Starting mode={config.mode} max_events={args.max_events}")
     processed = await run_watchdog_graph_loop(graph=graph, watchdog=watchdog, max_events=args.max_events)
-    print(f"Loop finished. Triggers processed: {processed}")
+    log_line("runner", "watchdog-loop", f"Finished triggers_processed={processed}")
 
 
 if __name__ == "__main__":

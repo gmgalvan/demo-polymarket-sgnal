@@ -10,7 +10,7 @@ Complete reference for executing the agent system locally — commands, argument
 
 | Agent | Class / Type | LLM | Node in Graph | Role |
 |-------|-------------|-----|--------------|------|
-| **El Vigía** (Watchdog) | Pure `asyncio` | No | Outside graph | Monitors Binance + Polymarket WebSockets 24/7. Fires `TriggerEvent` on `candle_close` or `volatility_spike`. |
+| **El Vigía** (Watchdog) | Pure `asyncio` | No | Outside graph | Monitors market data (Coinbase by default, Binance optional) + Polymarket WebSockets 24/7. Fires `TriggerEvent` on `candle_close` or `volatility_spike`. |
 | **El Estratega** (Strategist) | Strands `Agent` — `entry_point` | Yes — Qwen3-30B / Llama 70B | Node 1/2 | Calls MCP tools, queries vector DB (RAG), reasons about market data, outputs `StrategistDecision` (GO/NO_GO + probability + direction). |
 | **El Mensajero** (Broadcaster) | Strands `MultiAgentBase` (FunctionNode) | No | Node 2/2 | Receives GO decision, calculates EV and Kelly fraction, formats signal JSON, emits to EventBridge / Telegram / dashboard. |
 | **Analista de Contexto** (Context Analyst) | Strands `Agent` | Yes — Llama 3.1 8B | Background (not in main graph) | Summarizes raw text and upserts structured embeddings into the vector store. Runs from CLI or auto-triggered after GO signals. |
@@ -77,8 +77,8 @@ USE_RAG=true .venv/bin/python demo/trigger_local.py
 
 | Scenario | BTC Price | Polymarket Odds | Trigger | Expected result |
 |----------|-----------|----------------|---------|-----------------|
-| `bullish` | $82,950 | 1.68 (59.5% implied) | `candle_close` | GO + BUY if edge > 3%, else NO_GO |
-| `bearish` | $85,600 | 2.10 (47.6% implied) | `volatility_spike` | GO + SELL |
+| `bullish` | $82,950 | 1.68 (59.5% implied) | `candle_close` | GO + UP if edge > 3%, else NO_GO |
+| `bearish` | $85,600 | 2.10 (47.6% implied) | `volatility_spike` | GO + DOWN |
 | `no_go` | $84,020 | 2.00 (50% implied) | `candle_close` | NO_GO — market sideways, no edge |
 
 ---
@@ -94,14 +94,14 @@ Runs the full pipeline: Watchdog listens for events → triggers graph → logs 
 # Mock mode with RAG and MCP
 USE_RAG=true .venv/bin/python demo/run_watchdog_loop.py --mode mock --max-events 5 --use-mcp true
 
-# WebSocket mode — real Binance prices + Polymarket odds
+# WebSocket mode — real Coinbase prices + Polymarket odds
 USE_RAG=true .venv/bin/python demo/run_watchdog_loop.py --mode websocket
 
 # WebSocket mode, stop after 3 real triggers
 USE_RAG=true .venv/bin/python demo/run_watchdog_loop.py --mode websocket --max-events 3
 
-# WebSocket with faster candles (1min instead of 15min) to trigger sooner
-BINANCE_INTERVAL=1m .venv/bin/python demo/run_watchdog_loop.py --mode websocket --max-events 3
+# Force Binance provider (optional fallback)
+MARKET_DATA_PROVIDER=binance .venv/bin/python demo/run_watchdog_loop.py --mode websocket --max-events 3
 ```
 
 **Arguments:**
@@ -117,19 +117,24 @@ BINANCE_INTERVAL=1m .venv/bin/python demo/run_watchdog_loop.py --mode websocket 
 
 | Variable | Default | Effect |
 |----------|---------|--------|
+| `MARKET_DATA_PROVIDER` | `coinbase` | Market feed provider: `coinbase` or `binance` |
+| `COINBASE_PRODUCT_ID` | `BTC-USD` | Coinbase product for candles stream |
+| `COINBASE_WS_URL` | `wss://advanced-trade-ws.coinbase.com` | Coinbase Advanced Trade WebSocket endpoint |
 | `BINANCE_SYMBOL` | `btcusdt` | Binance trading pair to stream |
 | `BINANCE_INTERVAL` | `15m` | Candle timeframe (`1m`, `5m`, `15m`, `1h`) |
-| `BINANCE_WS_URL` | Auto-built from symbol + interval | Override Binance WebSocket URL |
+| `BINANCE_WS_URL` | Auto-built from symbol + interval | Override Binance WebSocket URL (used only when `MARKET_DATA_PROVIDER=binance`) |
 | `POLYMARKET_WS_URL` | _(empty)_ | Polymarket WebSocket endpoint. If not set, uses `POLYMARKET_DEFAULT_ODDS`. |
 | `POLYMARKET_AUTO_SUBSCRIBE` | `true` | Auto-discover active BTC market from Gamma API and subscribe |
 | `POLYMARKET_DEFAULT_ODDS` | `2.0` | Fallback odds when Polymarket WS is unavailable |
+| `POLYMARKET_SLUG_PATTERN` | _(empty)_ | Rolling slug discovery pattern (e.g. `btc-updown-15m`). Computes slug `btc-updown-15m-{unix_ts}` aligned to 15min windows and fetches via `/events?slug=`. Auto-computes refresh interval (window × 0.9). |
+| `POLYMARKET_MARKET_REFRESH_SECONDS` | `0` (disabled) | Reconnect to Polymarket WS every N seconds. Auto-computed from `POLYMARKET_SLUG_PATTERN` when set. Override to force a specific interval. |
 | `VOLATILITY_SPIKE_THRESHOLD` | `0.005` (0.5%) | Trigger a graph run mid-candle if price moves this much |
 | `WATCHDOG_RECONNECT_DELAY_SECONDS` | `2` | Seconds to wait before reconnecting a dropped WebSocket |
 
 **Modes explained:**
 
-- **`mock`**: Cycles through two hardcoded states (bullish + volatility spike) at a fixed interval. No network calls to Binance or Polymarket. Deterministic and fast — good for testing the graph without waiting.
-- **`websocket`**: Opens a real WebSocket to `wss://stream.binance.com:9443/ws/btcusdt@kline_15m`. Triggers on actual market events. With default `15m` candles, triggers fire every 15 minutes (or earlier on a volatility spike >= 0.5%).
+- **`mock`**: Cycles through two hardcoded states (bullish + volatility spike) at a fixed interval. No network calls to market providers or Polymarket. Deterministic and fast — good for testing the graph without waiting.
+- **`websocket`**: Opens a real WebSocket to Coinbase (default) or Binance (optional). Triggers on actual market events via candle updates and volatility spikes.
 
 ---
 
@@ -187,7 +192,7 @@ The script picks a scenario (e.g., BULLISH) and passes `invocation_state` into `
 ```python
 invocation_state = {
     "asset": "BTC",
-    "timeframe": "15min",
+    "timeframe": "5min",
     "ohlcv": {"open": 83200.0, "high": 83450.0, "low": 82800.0, "close": 82950.0, "volume": 1240.5},
     "polymarket_odds": 1.68,   # → implied probability 59.5%
     "volatility": 0.0023,

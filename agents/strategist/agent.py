@@ -27,10 +27,12 @@ from agents.config import (
     POLYMARKET_MCP_URL,
     REASONING_MODEL,
     SEARCH_MCP_URL,
+    STRATEGIST_MAX_TOKENS,
     TA_MCP_URL,
     USE_RAG,
     get_model_client_args,
 )
+from agents.logging_utils import log_line
 from agents.models import StrategistDecision
 from agents.strategist.prompts import (
     STRATEGIST_SYSTEM_PROMPT,
@@ -101,7 +103,7 @@ def build_strategist() -> Agent:
     model = LiteLLMModel(
         client_args=get_model_client_args(),
         model_id=REASONING_MODEL,
-        params={"max_tokens": 1024, "temperature": 0.3},
+        params={"max_tokens": STRATEGIST_MAX_TOKENS, "temperature": 0.1},
     )
 
     use_mcp = os.getenv("USE_MCP", "true").lower() == "true"
@@ -119,6 +121,11 @@ def build_strategist() -> Agent:
                     system_prompt=STRATEGIST_SYSTEM_PROMPT_RAG,
                     tools=[get_market_snapshot, query_vectordb, ta_mcp, polymarket_mcp, search_mcp],
                     structured_output_model=StrategistDecision,
+                    structured_output_prompt=(
+                        "Return only a JSON object that matches StrategistDecision. "
+                        "No markdown, no analysis prose, no extra keys. "
+                        "Do not emit interim commentary."
+                    ),
                 )
 
             return Agent(
@@ -127,9 +134,14 @@ def build_strategist() -> Agent:
                 system_prompt=STRATEGIST_SYSTEM_PROMPT,
                 tools=[get_market_snapshot, ta_mcp, polymarket_mcp, search_mcp],
                 structured_output_model=StrategistDecision,
+                structured_output_prompt=(
+                    "Return only a JSON object that matches StrategistDecision. "
+                    "No markdown, no analysis prose, no extra keys. "
+                    "Do not emit interim commentary."
+                ),
             )
         except Exception as exc:
-            print(f"[Strategist] MCP unavailable ({exc}). Falling back to stub tools.")
+            log_line("agent", "strategist", f"MCP unavailable ({exc}). Falling back to stub tools.")
 
     # Phase 1 / no-docker fallback
     return Agent(
@@ -138,4 +150,9 @@ def build_strategist() -> Agent:
         system_prompt=STRATEGIST_SYSTEM_PROMPT_STUB,
         tools=[get_market_snapshot, get_historical_context],
         structured_output_model=StrategistDecision,
+        structured_output_prompt=(
+            "Return only a JSON object that matches StrategistDecision. "
+            "No markdown, no analysis prose, no extra keys. "
+            "Do not emit interim commentary."
+        ),
     )

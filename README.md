@@ -10,7 +10,7 @@
 
 A real-time trading signal agent for prediction markets (Polymarket) that demonstrates multi-architecture LLM serving on Amazon EKS.
 
-The agent analyzes BTC, ETH, and SOL on 5-minute and 15-minute timeframes, generates BUY/SELL/HOLD signals with confidence scores, Expected Value (EV), and Kelly Criterion sizing, then distributes them to subscribers via Telegram, web dashboard, and more.
+The agent monitors BTC via Coinbase 5-minute candles, predicts UP or DOWN over the current 15-minute Polymarket window, and generates GO/NO_GO signals with confidence scores, Expected Value (EV), and Kelly Criterion sizing. Signals are distributed to subscribers via Telegram, web dashboard, and more.
 
 **The interesting part isn't the agent — it's that the agent doesn't know or care whether its brain runs on NVIDIA GPUs or AWS Inferentia.** EKS abstracts the hardware.
 
@@ -132,7 +132,7 @@ Only 2 out of 14 components need expensive GPU or Inferentia hardware. The rest 
 
 ```bash
 uv venv
-uv pip install -e ".[dev]"
+uv pip install -e ".[dev]"   # installs package in editable mode — required to avoid ModuleNotFoundError
 cp .env.example .env
 ```
 
@@ -185,10 +185,13 @@ USE_RAG=true ./.venv/bin/python demo/trigger_local.py
 USE_RAG=true ./.venv/bin/python demo/run_watchdog_loop.py --mode mock --max-events 3 --use-mcp false
 ```
 
-**Live WebSocket loop** (real Binance + Polymarket):
+**Live WebSocket loop** (real Coinbase + Polymarket):
 
 ```bash
 USE_RAG=true ./.venv/bin/python demo/run_watchdog_loop.py --mode websocket --use-mcp true
+
+# Optional: force Binance fallback provider
+MARKET_DATA_PROVIDER=binance USE_RAG=true ./.venv/bin/python demo/run_watchdog_loop.py --mode websocket --use-mcp true
 ```
 
 ### 4) Log tracking (services + agent)
@@ -230,7 +233,8 @@ docker compose logs --no-color > logs/mcp-services.log
 ### 5) Polymarket odds source
 
 - If `POLYMARKET_WS_URL` is set, watchdog uses Polymarket live WS.
-- If `POLYMARKET_AUTO_SUBSCRIBE=true`, watchdog auto-selects an active BTC market and rotates subscriptions on reconnect.
+- Set `POLYMARKET_SLUG_PATTERN=btc-updown-15m` to auto-discover rolling 15-minute BTC Up/Down markets via computed slug. The refresh interval is auto-computed (window × 0.9 = 810s for 15-minute markets).
+- If `POLYMARKET_AUTO_SUBSCRIBE=true` (and no slug pattern), watchdog falls back to searching via Gamma `/public-search` API.
 - If WS is unavailable, it falls back to `POLYMARKET_DEFAULT_ODDS`.
 
 ### 6) Quick troubleshooting

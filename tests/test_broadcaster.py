@@ -4,6 +4,7 @@ No LLM or network required — pure math.
 """
 import pytest
 from agents.broadcaster.node import calculate_ev_kelly, _parse_decision, BroadcasterNode
+from agents.broadcaster.lmsr import estimate_lmsr_execution
 from tests.fixtures.sample_candle import BULLISH_STATE
 
 VALID_DECISION_JSON = '{"decision": "GO", "probability": 0.65, "direction": "UP", "confidence": 0.80, "reasoning": "RSI oversold, bullish crossover."}'
@@ -71,6 +72,23 @@ class TestParseDecision:
         assert 0.0 <= decision.probability <= 1.0
 
 
+class TestLMSR:
+    def test_estimate_lmsr_execution_adds_slippage(self):
+        est = estimate_lmsr_execution(odds=2.0, trade_size_usd=100.0, liquidity_b=100.0)
+        assert est.effective_odds < 2.0
+        assert est.slippage_bps > 0
+
+    def test_deeper_liquidity_reduces_slippage(self):
+        shallow = estimate_lmsr_execution(odds=2.0, trade_size_usd=100.0, liquidity_b=100.0)
+        deep = estimate_lmsr_execution(odds=2.0, trade_size_usd=100.0, liquidity_b=10000.0)
+        assert deep.slippage_bps < shallow.slippage_bps
+
+    def test_invalid_inputs_fall_back(self):
+        est = estimate_lmsr_execution(odds=1.0, trade_size_usd=100.0, liquidity_b=100.0)
+        assert est.shares == 0.0
+        assert est.slippage_bps == 0.0
+
+
 @pytest.mark.asyncio
 async def test_broadcaster_node_runs():
     """BroadcasterNode runs end-to-end with a valid structured decision."""
@@ -86,5 +104,15 @@ async def test_broadcaster_produces_signal_fields(capsys):
     result = await node.invoke_async(VALID_DECISION_JSON, invocation_state=BULLISH_STATE)
     output = capsys.readouterr().out
     assert "BUY" in output or "SELL" in output
-    assert "EV" in output
-    assert "Kelly" in output
+    assert "ev_pct" in output
+    assert "kelly" in output
+
+
+@pytest.mark.asyncio
+async def test_broadcaster_lmsr_enabled_logs(capsys, monkeypatch):
+    monkeypatch.setattr("agents.broadcaster.node.USE_LMSR", True)
+    monkeypatch.setattr("agents.broadcaster.node.LMSR_LIQUIDITY_B", 100.0)
+    node = BroadcasterNode()
+    await node.invoke_async(VALID_DECISION_JSON, invocation_state=BULLISH_STATE)
+    output = capsys.readouterr().out
+    assert "lmsr enabled" in output

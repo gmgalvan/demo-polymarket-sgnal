@@ -2,6 +2,11 @@
 
 > **Status: Phases 1–4 implemented locally.** EKS deployment is pending.
 
+> **Local setup note:** The package must be installed in editable mode before running any script, otherwise `ModuleNotFoundError: No module named 'agents'` is raised.
+> ```bash
+> uv pip install -e ".[dev]"   # or: pip install -e .
+> ```
+
 ## Development Rules
 
 ### Strands Agents SDK — Always consult the docs first
@@ -12,7 +17,7 @@
 
 This repository contains the demo for the talk **"Orchestrating Intelligence: Multi-Architecture LLM Serving on Amazon EKS"**.
 
-The demo is a **real-time trading signal agent** for prediction markets (Polymarket) that analyzes BTC, ETH, and SOL on 5-minute and 15-minute timeframes. The agent generates BUY/SELL/HOLD signals with confidence scores, Expected Value (EV), and Kelly Criterion sizing, then distributes them to subscribers in real time.
+The demo is a **real-time trading signal agent** for prediction markets (Polymarket). It monitors BTC via Coinbase 5-minute candles, predicts UP or DOWN over the current 15-minute Polymarket window, and generates GO/NO_GO signals with confidence scores, Expected Value (EV), and Kelly Criterion sizing, then distributes them to subscribers in real time.
 
 The purpose of this demo is NOT the trading agent itself — it is the **vehicle** to demonstrate how Amazon EKS orchestrates LLM inference across multiple hardware architectures (NVIDIA GPUs, AWS Inferentia, AWS Graviton) transparently. The agent doesn't know or care what chip its "brain" runs on.
 
@@ -46,7 +51,7 @@ Device plugins expose hardware accelerators to Kubernetes so pods can request th
 
 A Strands Graph-based architecture with specialized components. See `docs/agent-patterns.md` for full details and `docs/agent_flow.mermaid` for the visual diagram.
 
-- **El Vigía** — asyncio watchdog (not a Strands agent). Monitors WebSockets 24/7 on ARM, triggers the Graph when conditions are met (candle close, volatility spike).
+- **El Vigía** — asyncio watchdog (not a Strands agent). Monitors Coinbase (default) or Binance + Polymarket WebSockets 24/7 on ARM, triggers the Graph on candle close or volatility spike.
 - **El Estratega** — Graph entry_point node. Reasons with a large model (30B-70B) via LiteLLM gateway + RAG from vector database. Emits GO/NO_GO with probability estimate.
 - **Arista Condicional** — Pure Python function that routes the Graph based on the Estratega's decision. No LLM.
 - **El Mensajero** — FunctionNode. Calculates EV/Kelly, formats signal, sends to subscribers. 100% deterministic, no LLM.
@@ -193,7 +198,7 @@ The agent connects to models via LiteLLM, never directly to vLLM. This is what m
 
 The demo uses the Strands Graph pattern with specialized components. See `docs/agent-patterns.md` for full details and `docs/agent_flow.mermaid` for the visual diagram.
 
-- **El Vigía** — asyncio watchdog that triggers the Graph (not a Strands agent, no LLM). Monitors WebSockets 24/7 on ARM.
+- **El Vigía** — asyncio watchdog that triggers the Graph (not a Strands agent, no LLM). Monitors Coinbase + Polymarket WebSockets 24/7 on ARM.
 - **El Estratega** — Graph entry_point node with reasoning model (30B-70B) and RAG. Decides GO/NO_GO.
 - **Arista Condicional** — Python function routing GO/NO_GO based on GraphState. No LLM.
 - **El Mensajero** — FunctionNode (custom MultiAgentBase) for deterministic EV/Kelly calculation and notification dispatch. No LLM.

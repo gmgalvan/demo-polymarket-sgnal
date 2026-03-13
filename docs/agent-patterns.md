@@ -53,7 +53,7 @@ The system has 4 components. Only 2 use LLMs.
 
 | Component | What It Is | Uses LLM? | Strands Pattern |
 |-----------|-----------|-----------|----------------|
-| **El Vigía** (Watchdog) | asyncio Python script. Listens to Binance + Polymarket WebSockets. Triggers the Graph on `candle_close` or `volatility_spike`. | ❌ No | Not Strands — pure infrastructure |
+| **El Vigía** (Watchdog) | asyncio Python script. Listens to Coinbase (default) or Binance + Polymarket WebSockets. Triggers the Graph on `candle_close` or `volatility_spike`. | ❌ No | Not Strands — pure infrastructure |
 | **El Estratega** (Strategist) | Strands Agent (`name="strategist"`). Reasons about market data via MCP tools. Emits `StrategistDecision` (GO/NO_GO). Local: Claude via Anthropic API. EKS: LiteLLM → vLLM (GPU/Inferentia). | ✅ Yes | Graph entry_point node |
 | **Arista Condicional** | `has_positive_ev(GraphState)` — reads `structured_output` from the Strategist result. | ❌ No | Graph conditional edge |
 | **Broadcaster** (`BroadcasterNode`) | Deterministic node. Calculates EV/Kelly from `StrategistDecision` + `invocation_state`. Emits signal to console (local) / EventBridge (EKS). | ❌ No | FunctionNode (custom MultiAgentBase) |
@@ -76,8 +76,8 @@ The Vigía is NOT a Strands agent. It's a pure asyncio Python script running as 
 
 ### What It Does
 
-1. Connects to WebSockets (Binance for BTC price, Polymarket for odds)
-2. Accumulates OHLCV data for the current 15-minute candle
+1. Connects to WebSockets (Coinbase for BTC 5-minute candles by default, Binance as optional fallback; Polymarket for odds)
+2. Accumulates OHLCV data for the current candle
 3. When a trigger condition is met, invokes the Strands Graph
 4. Resets and waits for the next candle
 
@@ -86,8 +86,9 @@ The Vigía is NOT a Strands agent. It's a pure asyncio Python script running as 
 The Vigía fires the Graph when ANY of these conditions is true:
 
 ```python
-# Candle close: Binance sets kline["x"] = True when the candle is definitively closed
-if kline["x"]:
+# Candle close: detected when a newer candle start timestamp is observed
+# (Coinbase does not send an explicit close flag; Binance uses kline["x"])
+if new_candle_started:
     trigger = "candle_close"
 
 # Volatility spike: intra-candle move exceeds threshold (once per candle)

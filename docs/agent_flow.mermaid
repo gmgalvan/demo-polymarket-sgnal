@@ -1,6 +1,6 @@
 graph TD
     subgraph INFRA["⚙️ INFRASTRUCTURE"]
-        WS["🌐 WebSockets (Binance + Polymarket)"]
+        WS["🌐 WebSockets (Coinbase + Polymarket)"]
         VG["🐕 WATCHDOG (asyncio · 24/7)"]
     end
 
@@ -16,6 +16,12 @@ graph TD
         BC["📢 BROADCASTER (FunctionNode · no LLM)"]
     end
 
+    subgraph MCP["🔌 MCP SERVERS (ARM pods)"]
+        MTA["📊 Technical Analysis\nRSI · MACD · Bollinger · VWAP"]
+        MPM["🎯 Polymarket API\nmarkets · odds · volume"]
+        MWS["🔍 Web Search\nTavily sentiment"]
+    end
+
     subgraph TOOLS["🔧 TOOLS"]
         MATH["🔢 calculate_ev_kelly()"]
         EB["📡 EventBridge (local: console log)"]
@@ -25,10 +31,13 @@ graph TD
     SIGNAL["🟢 SIGNAL EMITTED"]
 
     WS -->|"price + odds"| VG
-    VG -->|"candle_close / volatility_spike"| ES
+    VG -->|"candle_close"| ES
     CLI -->|"raw text / articles"| AC
     AC -->|"summarize + upsert"| VDB
     VDB -->|"query_vectordb() top-k"| ES
+    ES <-->|"indicators"| MTA
+    ES <-->|"market data"| MPM
+    ES <-->|"sentiment"| MWS
     ES -->|"GO / NO_GO"| COND
     COND -->|"NO_GO"| NO
     COND -->|"GO ✅"| BC
@@ -43,6 +52,7 @@ graph TD
     style INFRA fill:#1a1a2e,stroke:#e94560,color:#fff
     style BG fill:#1a1a2e,stroke:#f5a623,color:#fff
     style GRAPH fill:#0f3460,stroke:#00d2ff,color:#fff
+    style MCP fill:#1a1a2e,stroke:#7c4dff,color:#fff
     style TOOLS fill:#1a1a2e,stroke:#a8e6cf,color:#fff
     style ES fill:#16213e,stroke:#00d2ff,color:#fff
     style COND fill:#e94560,stroke:#fff,color:#fff
@@ -53,3 +63,6 @@ graph TD
     style CLI fill:#16213e,stroke:#f5a623,color:#fff
     style AC fill:#16213e,stroke:#f5a623,color:#fff
     style VDB fill:#16213e,stroke:#f5a623,color:#fff
+    style MTA fill:#16213e,stroke:#7c4dff,color:#fff
+    style MPM fill:#16213e,stroke:#7c4dff,color:#fff
+    style MWS fill:#16213e,stroke:#7c4dff,color:#fff

@@ -10,11 +10,19 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
 # ── Model ──────────────────────────────────────────────────────────────────────
 # Local: "anthropic/claude-haiku-4-5-20251001" (cheap, fast for testing)
 # EKS:   "llama-3.1-70b" (or whichever model is deployed in vLLM)
 REASONING_MODEL = os.getenv("REASONING_MODEL", "anthropic/claude-haiku-4-5-20251001")
 FAST_MODEL = os.getenv("FAST_MODEL", "anthropic/claude-haiku-4-5-20251001")
+STRATEGIST_MAX_TOKENS = int(os.getenv("STRATEGIST_MAX_TOKENS", "768"))
 
 MODEL_PROVIDER = os.getenv("MODEL_PROVIDER", "anthropic")  # "anthropic" | "litellm_proxy"
 
@@ -66,6 +74,8 @@ CHROMA_PATH = os.getenv("CHROMA_PATH", "./data/chroma")
 # ── Signal ────────────────────────────────────────────────────────────────────
 DEFAULT_BANKROLL_USD = float(os.getenv("DEFAULT_BANKROLL_USD", "1000"))
 HALF_KELLY = 0.5  # Use half-Kelly for conservatism
+USE_LMSR = _env_bool("USE_LMSR", False)
+LMSR_LIQUIDITY_B = float(os.getenv("LMSR_LIQUIDITY_B", "5000"))
 
 # ── Graph ─────────────────────────────────────────────────────────────────────
 GRAPH_EXECUTION_TIMEOUT = int(os.getenv("GRAPH_EXECUTION_TIMEOUT", "90"))

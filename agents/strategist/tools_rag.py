@@ -11,7 +11,7 @@ from services.vectorstore.factory import get_vector_store
 
 
 @tool
-def query_vectordb(query: str, top_k: int = 3) -> str:
+def query_vectordb(query: str, top_k: int = 1) -> str:
     """Search historical market context from the vector database.
 
     Retrieves relevant summaries ingested by the Context Analyst: past signal
@@ -21,10 +21,10 @@ def query_vectordb(query: str, top_k: int = 3) -> str:
 
     Args:
         query: What you're looking for (e.g. "BTC support levels", "recent sentiment")
-        top_k: Number of results to return (default: 3, max: 5)
+        top_k: Number of results to return (default: 1, max: 2)
     """
     vs = get_vector_store()
-    results = vs.query(query=query, top_k=min(top_k, 5))
+    results = vs.query(query=query, top_k=min(top_k, 2))
 
     if not results:
         return (
@@ -35,11 +35,13 @@ def query_vectordb(query: str, top_k: int = 3) -> str:
     lines = ["=== Historical Context (Vector DB) ==="]
     for i, item in enumerate(results, 1):
         meta = item["metadata"]
+        text = " ".join(str(item["text"]).strip().split())
+        text = text[:220]
         lines.append(
             f"\n[{i}] asset={meta.get('asset', '?')} "
             f"source={meta.get('source', '?')} "
             f"time={meta.get('timestamp', 'N/A')[:16]}"
         )
-        lines.append(f"    {item['text'].strip()}")
+        lines.append(f"    {text}")
 
     return "\n".join(lines)

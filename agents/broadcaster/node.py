@@ -14,7 +14,14 @@ from datetime import datetime, timezone
 
 from strands.multiagent.base import MultiAgentBase, MultiAgentResult, Status
 
-from agents.config import DEFAULT_BANKROLL_USD, HALF_KELLY
+from agents.broadcaster.lmsr import estimate_lmsr_execution
+from agents.config import (
+    DEFAULT_BANKROLL_USD,
+    HALF_KELLY,
+    LMSR_LIQUIDITY_B,
+    USE_LMSR,
+)
+from agents.logging_utils import log_line
 from agents.models import Signal, StrategistDecision
 
 
@@ -68,15 +75,36 @@ class BroadcasterNode(MultiAgentBase):
         decision = _parse_decision(str(task))
 
         # 2. Read context from invocation_state
-        odds = invocation_state.get("polymarket_odds", 1.65)
-        bankroll = invocation_state.get("bankroll", DEFAULT_BANKROLL_USD)
+        odds = float(invocation_state.get("polymarket_odds", 1.65))
+        bankroll = float(invocation_state.get("bankroll", DEFAULT_BANKROLL_USD))
         asset = invocation_state.get("asset", "BTC")
         timeframe = invocation_state.get("timeframe", "15min")
         timestamp = invocation_state.get("timestamp", datetime.now(timezone.utc).isoformat())
 
-        # 3. Calculate EV and Kelly
+        # 3. Calculate EV and Kelly (base odds from market snapshot)
         ev_pct, kelly_fraction = calculate_ev_kelly(decision.probability, odds)
         suggested_size_usd = round(bankroll * kelly_fraction * HALF_KELLY, 2)
+        effective_odds = odds
+
+        # Optional: apply LMSR slippage adjustment to estimate fill quality for size.
+        if USE_LMSR and suggested_size_usd > 0:
+            lmsr = estimate_lmsr_execution(
+                odds=odds,
+                trade_size_usd=suggested_size_usd,
+                liquidity_b=LMSR_LIQUIDITY_B,
+            )
+            effective_odds = lmsr.effective_odds
+            ev_pct, kelly_fraction = calculate_ev_kelly(decision.probability, effective_odds)
+            suggested_size_usd = round(bankroll * kelly_fraction * HALF_KELLY, 2)
+            log_line(
+                "service",
+                "broadcaster",
+                (
+                    f"lmsr enabled b={LMSR_LIQUIDITY_B:.0f} "
+                    f"odds_raw={odds:.4f} odds_eff={effective_odds:.4f} "
+                    f"slippage_bps={lmsr.slippage_bps:.2f}"
+                ),
+            )
 
         # 4. Build signal
         signal = Signal(
@@ -87,7 +115,7 @@ class BroadcasterNode(MultiAgentBase):
             ev_pct=ev_pct,
             kelly_fraction=kelly_fraction,
             suggested_size_usd=suggested_size_usd,
-            polymarket_odds=odds,
+            polymarket_odds=effective_odds,
             probability_estimate=decision.probability,
             reasoning=decision.reasoning,
             timestamp=timestamp,
@@ -104,17 +132,9 @@ class BroadcasterNode(MultiAgentBase):
         LOCAL:  prints to console with readable formatting
         EKS:    publishes to EventBridge / Telegram
         """
-        separator = "=" * 60
-        print(f"\n{separator}")
-        print(f"  SIGNAL EMITTED — {signal.asset} {signal.timeframe}")
-        print(separator)
-        print(f"  Direction : {signal.signal}")
-        print(f"  Confidence: {signal.confidence:.0%}")
-        print(f"  EV        : {signal.ev_pct:+.1f}%")
-        print(f"  Kelly     : {signal.kelly_fraction:.2%} → ${signal.suggested_size_usd}")
-        print(f"  Odds      : {signal.polymarket_odds}x")
-        print(f"  P(win)    : {signal.probability_estimate:.0%}")
-        print(f"  Timestamp : {signal.timestamp}")
-        print(separator)
-        print(f"  Reasoning : {signal.reasoning[:200]}")
-        print(f"{separator}\n")
+        log_line("service", "broadcaster", f"SIGNAL asset={signal.asset} timeframe={signal.timeframe}")
+        log_line("service", "broadcaster", f"direction={signal.signal} confidence={signal.confidence:.0%}")
+        log_line("service", "broadcaster", f"ev_pct={signal.ev_pct:+.1f}% kelly={signal.kelly_fraction:.2%}")
+        log_line("service", "broadcaster", f"suggested_size_usd={signal.suggested_size_usd} odds={signal.polymarket_odds}x")
+        log_line("service", "broadcaster", f"p_win={signal.probability_estimate:.0%} timestamp={signal.timestamp}")
+        log_line("service", "broadcaster", f"reasoning={signal.reasoning[:200]}")

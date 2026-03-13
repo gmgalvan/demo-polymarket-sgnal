@@ -1,11 +1,20 @@
 """Tests for watchdog loop and payload parsing (no network)."""
+from types import SimpleNamespace
+
 import pytest
 
 from agents.watchdog import Watchdog, WatchdogConfig, extract_polymarket_odds
 from agents.watchdog.watchdog import (
+    TriggerEvent,
+    _deterministic_no_go_reason,
     _build_polymarket_queries,
+    _extract_polymarket_event_slug,
+    _strip_polymarket_rotating_suffix,
+    build_polymarket_subscribe_for_event_ref,
+    build_polymarket_subscribe_from_markets_result,
     build_polymarket_subscribe_from_search_result,
     parse_clob_token_ids,
+    run_watchdog_graph_loop,
 )
 
 
@@ -164,3 +173,274 @@ def test_build_polymarket_queries_dedupes_and_keeps_priority():
     assert queries[0] == "bitcoin"
     assert "bitcoin up or down" in queries
     assert queries.count("bitcoin") == 1
+
+
+def test_extract_polymarket_event_slug_from_url():
+    url = "https://polymarket.com/event/btc-updown-5m-1773359400"
+    assert _extract_polymarket_event_slug(url) == "btc-updown-5m-1773359400"
+    assert _extract_polymarket_event_slug("btc-updown-5m-1773359400") == "btc-updown-5m-1773359400"
+
+
+def test_strip_polymarket_rotating_suffix():
+    assert _strip_polymarket_rotating_suffix("btc-updown-5m-1773359400") == "btc-updown-5m"
+    assert _strip_polymarket_rotating_suffix("btc-updown-5m") == "btc-updown-5m"
+
+
+def test_build_polymarket_subscribe_for_event_ref_matches_slug():
+    payload = {
+        "events": [
+            {
+                "slug": "btc-updown-5m-1773359400",
+                "markets": [
+                    {
+                        "question": "Bitcoin Up or Down - 5m",
+                        "active": True,
+                        "closed": False,
+                        "endDate": "2099-03-11T14:00:00Z",
+                        "clobTokenIds": ["yes-1", "no-1"],
+                        "conditionId": "cond-updown-5m",
+                    }
+                ],
+            },
+            {
+                "slug": "other-market",
+                "markets": [
+                    {
+                        "question": "Other market",
+                        "active": True,
+                        "closed": False,
+                        "endDate": "2099-03-11T14:00:00Z",
+                        "clobTokenIds": ["yes-2", "no-2"],
+                        "conditionId": "cond-other",
+                    }
+                ],
+            },
+        ]
+    }
+    subscribe, market = build_polymarket_subscribe_for_event_ref(
+        payload=payload,
+        event_ref="https://polymarket.com/event/btc-updown-5m-1773359400",
+    )
+    assert subscribe is not None
+    assert market is not None
+    assert subscribe["assets_ids"] == ["yes-1", "no-1"]
+    assert market["conditionId"] == "cond-updown-5m"
+
+
+def test_build_polymarket_subscribe_for_event_ref_matches_rolling_slug():
+    payload = {
+        "events": [
+            {
+                "slug": "btc-updown-5m-1773360000",
+                "markets": [
+                    {
+                        "question": "Bitcoin Up or Down - 5m",
+                        "active": True,
+                        "closed": False,
+                        "endDate": "2099-03-11T14:05:00Z",
+                        "clobTokenIds": ["yes-roll", "no-roll"],
+                        "conditionId": "cond-updown-5m-roll",
+                    }
+                ],
+            }
+        ]
+    }
+    subscribe, market = build_polymarket_subscribe_for_event_ref(
+        payload=payload,
+        event_ref="https://polymarket.com/event/btc-updown-5m-1773359400",
+    )
+    assert subscribe is not None
+    assert market is not None
+    assert subscribe["assets_ids"] == ["yes-roll", "no-roll"]
+    assert market["conditionId"] == "cond-updown-5m-roll"
+
+
+def test_build_polymarket_subscribe_for_event_ref_matches_semantic_hints():
+    payload = {
+        "events": [
+            {
+                "title": "Bitcoin Up or Down - 5m (rolling)",
+                "markets": [
+                    {
+                        "question": "Bitcoin Up or Down - 5m",
+                        "active": True,
+                        "closed": False,
+                        "endDate": "2099-03-11T14:10:00Z",
+                        "clobTokenIds": ["yes-sem", "no-sem"],
+                        "conditionId": "cond-updown-5m-semantic",
+                    }
+                ],
+            }
+        ]
+    }
+    subscribe, market = build_polymarket_subscribe_for_event_ref(
+        payload=payload,
+        event_ref="https://polymarket.com/event/btc-updown-5m-1773359400",
+    )
+    assert subscribe is not None
+    assert market is not None
+    assert subscribe["assets_ids"] == ["yes-sem", "no-sem"]
+    assert market["conditionId"] == "cond-updown-5m-semantic"
+
+
+def test_build_polymarket_subscribe_from_markets_result_matches_rolling_slug():
+    markets = [
+        {
+            "slug": "btc-updown-5m-1773360000",
+            "question": "Bitcoin Up or Down - 5m",
+            "active": True,
+            "closed": False,
+            "endDate": "2099-03-11T14:15:00Z",
+            "clobTokenIds": ["yes-market", "no-market"],
+            "conditionId": "cond-updown-5m-market",
+        }
+    ]
+    subscribe, market = build_polymarket_subscribe_from_markets_result(
+        markets=markets,
+        event_ref="https://polymarket.com/event/btc-updown-5m-1773359400",
+    )
+    assert subscribe is not None
+    assert market is not None
+    assert subscribe["assets_ids"] == ["yes-market", "no-market"]
+    assert market["conditionId"] == "cond-updown-5m-market"
+
+
+def test_coinbase_timeframe_forced_to_5min_by_default(monkeypatch):
+    monkeypatch.setenv("MARKET_DATA_PROVIDER", "coinbase")
+    monkeypatch.setenv("WATCHDOG_ASSET", "ADA")
+    monkeypatch.setenv("WATCHDOG_TIMEFRAME", "15min")
+    monkeypatch.delenv("WATCHDOG_COINBASE_5MIN_ASSETS", raising=False)
+    cfg = WatchdogConfig.from_env()
+    assert cfg.timeframe == "5min"
+    assert cfg.coinbase_5min_assets == ()
+
+
+def test_coinbase_timeframe_forced_only_for_listed_assets(monkeypatch):
+    monkeypatch.setenv("MARKET_DATA_PROVIDER", "coinbase")
+    monkeypatch.setenv("WATCHDOG_COINBASE_5MIN_ASSETS", "BTC, ETH, SOL")
+
+    monkeypatch.setenv("WATCHDOG_ASSET", "ADA")
+    monkeypatch.setenv("WATCHDOG_TIMEFRAME", "15min")
+    cfg_ada = WatchdogConfig.from_env()
+    assert cfg_ada.timeframe == "15min"
+    assert cfg_ada.coinbase_5min_assets == ("BTC", "ETH", "SOL")
+
+    monkeypatch.setenv("WATCHDOG_ASSET", "ETH")
+    monkeypatch.setenv("WATCHDOG_TIMEFRAME", "15min")
+    cfg_eth = WatchdogConfig.from_env()
+    assert cfg_eth.timeframe == "5min"
+
+
+def test_watchdog_loads_explicit_polymarket_event_ref(monkeypatch):
+    monkeypatch.setenv("POLYMARKET_EVENT_URL", "https://polymarket.com/event/btc-updown-5m-1773359400")
+    cfg = WatchdogConfig.from_env()
+    assert cfg.polymarket_event_ref == "https://polymarket.com/event/btc-updown-5m-1773359400"
+
+
+def test_deterministic_no_go_when_edge_is_mathematically_impossible():
+    state = {
+        "polymarket_odds": 1.0015,  # implied ~99.85%
+    }
+    reason = _deterministic_no_go_reason(state)
+    assert reason is not None
+    assert "impossible_edge" in reason
+
+
+@pytest.mark.asyncio
+async def test_run_loop_skips_graph_for_impossible_edge():
+    class FakeWatchdog:
+        async def iter_events(self, max_events=None):
+            yield TriggerEvent(
+                task="analyze",
+                invocation_state={
+                    "asset": "BTC",
+                    "timeframe": "5min",
+                    "trigger_reason": "candle_close",
+                    "polymarket_odds": 1.0015,
+                    "ohlcv": {"open": 1, "high": 1, "low": 1, "close": 1, "volume": 1},
+                    "volatility": 0.0,
+                    "bankroll": 1000.0,
+                    "timestamp": "2026-03-12T00:00:00+00:00",
+                },
+            )
+
+    class FakeGraph:
+        called = False
+
+        async def invoke_async(self, task, invocation_state=None):
+            self.called = True
+            raise AssertionError("Graph should not be invoked for impossible-edge events")
+
+    graph = FakeGraph()
+    processed = await run_watchdog_graph_loop(graph=graph, watchdog=FakeWatchdog(), max_events=1)
+    assert processed == 1
+    assert graph.called is False
+
+
+@pytest.mark.asyncio
+async def test_run_loop_treats_token_limit_as_no_go():
+    class FakeWatchdog:
+        async def iter_events(self, max_events=None):
+            yield TriggerEvent(
+                task="analyze",
+                invocation_state={
+                    "asset": "BTC",
+                    "timeframe": "5min",
+                    "trigger_reason": "candle_close",
+                    "polymarket_odds": 1.8,
+                    "ohlcv": {"open": 1, "high": 1, "low": 1, "close": 1, "volume": 1},
+                    "volatility": 0.0,
+                    "bankroll": 1000.0,
+                    "timestamp": "2026-03-12T00:00:00+00:00",
+                },
+            )
+
+    class MaxTokensReachedException(Exception):
+        pass
+
+    class FakeGraph:
+        async def invoke_async(self, task, invocation_state=None):
+            raise MaxTokensReachedException("token budget exceeded")
+
+    processed = await run_watchdog_graph_loop(graph=FakeGraph(), watchdog=FakeWatchdog(), max_events=1)
+    assert processed == 1
+
+
+@pytest.mark.asyncio
+async def test_run_loop_invokes_graph_when_edge_guard_disabled():
+    class FakeWatchdog:
+        config = SimpleNamespace(enforce_impossible_edge_guard=False)
+
+        async def iter_events(self, max_events=None):
+            yield TriggerEvent(
+                task="analyze",
+                invocation_state={
+                    "asset": "BTC",
+                    "timeframe": "5min",
+                    "trigger_reason": "candle_close",
+                    "polymarket_odds": 1.0015,
+                    "ohlcv": {"open": 1, "high": 1, "low": 1, "close": 1, "volume": 1},
+                    "volatility": 0.0,
+                    "bankroll": 1000.0,
+                    "timestamp": "2026-03-12T00:00:00+00:00",
+                },
+            )
+
+    class FakeResult:
+        status = "COMPLETED"
+        completed_nodes = 1
+        total_nodes = 1
+        execution_time = 0
+        results = {}
+
+    class FakeGraph:
+        called = False
+
+        async def invoke_async(self, task, invocation_state=None):
+            self.called = True
+            return FakeResult()
+
+    graph = FakeGraph()
+    processed = await run_watchdog_graph_loop(graph=graph, watchdog=FakeWatchdog(), max_events=1)
+    assert processed == 1
+    assert graph.called is True
