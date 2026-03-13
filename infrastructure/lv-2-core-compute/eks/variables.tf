@@ -25,7 +25,7 @@ variable "cluster_name" {
 variable "cluster_version" {
   description = "EKS control plane version."
   type        = string
-  default     = "1.30"
+  default     = "1.34"
 }
 
 variable "eks_endpoint_public_access" {
@@ -55,7 +55,13 @@ variable "vpc_state_region" {
 variable "core_node_instance_type" {
   description = "Instance type for the default core managed node group."
   type        = string
-  default     = "t3.large"
+  default     = "m7g.large"
+}
+
+variable "core_node_ami_type" {
+  description = "AMI type for the default core managed node group."
+  type        = string
+  default     = "AL2023_ARM_64_STANDARD"
 }
 
 variable "core_node_min_size" {
@@ -85,13 +91,13 @@ variable "l40s_instance_type" {
 variable "l40s_node_min_size" {
   description = "Minimum nodes for the L40S managed node group."
   type        = number
-  default     = 1
+  default     = 0
 }
 
 variable "l40s_node_desired_size" {
   description = "Desired nodes for the L40S managed node group."
   type        = number
-  default     = 1
+  default     = 0
 }
 
 variable "l40s_node_max_size" {
@@ -115,13 +121,13 @@ variable "inferentia_instance_type" {
 variable "inferentia_node_min_size" {
   description = "Minimum nodes for the Inferentia managed node group."
   type        = number
-  default     = 1
+  default     = 0
 }
 
 variable "inferentia_node_desired_size" {
   description = "Desired nodes for the Inferentia managed node group."
   type        = number
-  default     = 1
+  default     = 0
 }
 
 variable "inferentia_node_max_size" {
@@ -147,6 +153,18 @@ variable "karpenter_chart_version" {
   type        = string
   default     = null
   nullable    = true
+}
+
+variable "enable_karpenter_resources" {
+  description = "Whether to install Karpenter in-cluster resources (Helm chart, NodePools, device plugins). Enable only after the EKS cluster exists and kube auth works."
+  type        = bool
+  default     = false
+}
+
+variable "enable_karpenter_nodepools" {
+  description = "Whether to install Karpenter EC2NodeClass and NodePool resources. Enable only after the Karpenter chart and CRDs are already installed."
+  type        = bool
+  default     = false
 }
 
 variable "additional_tags" {

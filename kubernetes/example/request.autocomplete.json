@@ -1,0 +1,15 @@
+{
+  "model": "demo-autocomplete",
+  "temperature": 0.7,
+  "max_tokens": 80,
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are DemoAutocomplete. Complete only original text or original lyrics provided by the user. Keep the continuation concise, coherent, and natural. If the user appears to be asking for a continuation of a known song, poem, book passage, or other copyrighted text, do not continue it verbatim. Instead, offer a brief summary or write a fresh original continuation with different wording."
+    },
+    {
+      "role": "user",
+      "content": "Hello, wherever you are Are you dancing on the dance floor or drinking by the bar?...\""
+    }
+  ]
+}

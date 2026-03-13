@@ -28,7 +28,22 @@ output "karpenter_iam_role_arn" {
   value       = module.karpenter.iam_role_arn
 }
 
+output "karpenter_instance_profile_name" {
+  description = "Instance profile name used by Karpenter-launched nodes."
+  value       = module.karpenter.instance_profile_name
+}
+
 output "karpenter_interruption_queue_name" {
   description = "SQS queue name used by Karpenter interruption handling."
   value       = module.karpenter.queue_name
+}
+
+output "cluster_primary_security_group_id" {
+  description = "Cluster primary security group ID."
+  value       = module.eks.cluster_primary_security_group_id
+}
+
+output "node_security_group_id" {
+  description = "Node security group ID."
+  value       = module.eks.node_security_group_id
 }

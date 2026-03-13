@@ -28,6 +28,11 @@ variable "core_node_instance_type" {
   type        = string
 }
 
+variable "core_node_ami_type" {
+  description = "AMI type for the default core managed node group."
+  type        = string
+}
+
 variable "core_node_min_size" {
   description = "Minimum nodes for the core managed node group."
   type        = number

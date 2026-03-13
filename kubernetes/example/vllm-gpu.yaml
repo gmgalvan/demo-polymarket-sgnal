@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-gpu-autocomplete
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: vllm-gpu-autocomplete
+  template:
+    metadata:
+      labels:
+        app: vllm-gpu-autocomplete
+    spec:
+      nodeSelector:
+        workload: gpu
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      containers:
+        - name: vllm
+          image: vllm/vllm-openai:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - --model=Qwen/Qwen2.5-3B-Instruct
+            - --served-model-name=demo-autocomplete
+            - --host=0.0.0.0
+            - --port=8000
+            - --dtype=half
+            - --max-model-len=4096
+            - --gpu-memory-utilization=0.85
+            - --download-dir=/models
+          ports:
+            - containerPort: 8000
+              name: http
+          resources:
+            requests:
+              cpu: "3"
+              memory: "12Gi"
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "4"
+              memory: "16Gi"
+              nvidia.com/gpu: "1"
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 60
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 20
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: model-cache
+              mountPath: /models
+      volumes:
+        - name: model-cache
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-gpu-autocomplete
+spec:
+  selector:
+    app: vllm-gpu-autocomplete
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
