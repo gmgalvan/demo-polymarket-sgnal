@@ -11,11 +11,16 @@ ENV VLLM_TARGET_DEVICE=neuron
 
 RUN python3 -m pip install -U -r requirements-neuron.txt
 RUN python3 -m pip install .
+# vLLM 0.6.0 is not compatible with Transformers 5.x / latest tokenizers.
+# Keep a known-good pair for Llama 3.1 on this stack.
+RUN python3 -m pip install --no-cache-dir "transformers==4.44.2" "tokenizers==0.19.1"
 
 # Extend block-size choices as in AWS reference.
 RUN sed -i "/parser.add_argument('--block-size',/ {N;N;N;N;N;s/\\[8, 16, 32\\]/[8, 16, 32, 128, 256, 512, 1024, 2048, 4096, 8192]/}" vllm/engine/arg_utils.py
 
 RUN python3 -m pip install ray
-RUN python3 -m pip install -U "triton>=3.0.0"
+# Keep Triton aligned with vLLM 0.6 Neuron path. Newer Triton versions
+# can remove symbols used by vLLM (for example default_cache_dir).
+RUN python3 -m pip install --no-cache-dir "triton==3.0.0"
 
 ENTRYPOINT ["python3", "-m", "vllm.entrypoints.openai.api_server"]

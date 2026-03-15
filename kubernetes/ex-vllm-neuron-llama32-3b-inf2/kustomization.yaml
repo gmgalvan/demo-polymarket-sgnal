@@ -4,5 +4,4 @@ kind: Kustomization
 namespace: ai-example
 
 resources:
-  - namespace.yaml
   - vllm-neuron.yaml

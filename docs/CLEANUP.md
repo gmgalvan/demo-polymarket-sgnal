@@ -19,6 +19,8 @@ export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output tex
 
 ## 1) Cleanup de Kubernetes (examples)
 
+`ai-example` is now a shared namespace (`kubernetes/ai-example-namespace.yaml`).
+
 ```bash
 cd /home/gmgalvan/demo-polymarket-signal
 
@@ -29,6 +31,11 @@ kubectl delete -k kubernetes/ex-vllm-neuron-llama31-8b-inf2 --ignore-not-found
 kubectl delete deployment -n ai-example --all --ignore-not-found
 kubectl delete service -n ai-example --all --ignore-not-found
 kubectl delete pod -n ai-example --all --force --grace-period=0 --ignore-not-found
+```
+
+Only for FULL teardown (do not run this for partial example cleanup):
+
+```bash
 kubectl delete namespace ai-example --ignore-not-found
 ```
 

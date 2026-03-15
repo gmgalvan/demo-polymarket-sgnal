@@ -1,0 +1,86 @@
+# Strategy 1: Init-Container Copy (emptyDir)
+#
+# This is what our existing GPU and Neuron examples use.
+# vLLM downloads the model from Hugging Face into an emptyDir volume on startup.
+#
+# Pros:
+#   - Simplest setup, no external storage needed
+#   - Fastest inference (node-local I/O after download)
+# Cons:
+#   - Model re-downloaded on every pod restart (slow cold starts)
+#   - Storage wasted per replica (each pod has its own copy)
+#   - Not suitable for large models or multi-replica deployments
+#
+# Best for: single-replica, development, small models
+#
+# See: docs/model-data-summary.md — Strategy 1
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-gpu-emptydir
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: vllm-gpu-emptydir
+  template:
+    metadata:
+      labels:
+        app: vllm-gpu-emptydir
+    spec:
+      nodeSelector:
+        workload: gpu
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      containers:
+        - name: vllm
+          image: vllm/vllm-openai:latest
+          args:
+            - --model=Qwen/Qwen2.5-3B-Instruct
+            - --served-model-name=qwen25-3b-gpu
+            - --host=0.0.0.0
+            - --port=8000
+            - --dtype=half
+            - --max-model-len=4096
+            - --gpu-memory-utilization=0.85
+            - --download-dir=/models
+          ports:
+            - containerPort: 8000
+              name: http
+          resources:
+            requests:
+              cpu: "3"
+              memory: "12Gi"
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "4"
+              memory: "16Gi"
+              nvidia.com/gpu: "1"
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 60
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: model-cache
+              mountPath: /models
+      volumes:
+        # emptyDir: ephemeral, tied to pod lifecycle.
+        # Model is re-downloaded every time the pod starts.
+        - name: model-cache
+          emptyDir: {}

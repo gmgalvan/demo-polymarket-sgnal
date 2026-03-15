@@ -1,0 +1,138 @@
+# Strategy 2: PersistentVolume with EFS (ReadOnlyMany)
+#
+# Model is stored once on Amazon EFS and mounted read-only by all replicas.
+# An init-container downloads the model only if it doesn't already exist on the PV.
+#
+# Pros:
+#   - Model downloaded once, shared across all replicas
+#   - Fast startup after first download (no re-download)
+#   - Highest storage efficiency for multi-replica deployments
+# Cons:
+#   - Requires EFS CSI driver + StorageClass setup
+#   - Network I/O on every model read (mitigated by OS page cache)
+#   - EFS throughput can bottleneck with hundreds of replicas
+#
+# Best for: multi-replica production, moderate scale
+#
+# Prerequisites:
+#   - EFS CSI driver installed: https://docs.aws.amazon.com/eks/latest/userguide/efs-csi.html
+#   - EFS filesystem created and accessible from EKS nodes
+#   - StorageClass "efs-sc" configured
+#
+# See: docs/model-data-summary.md — Strategy 2
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: model-store-efs
+spec:
+  accessModes:
+    - ReadWriteMany       # EFS supports RWX; pods mount as readOnly below
+  storageClassName: efs-sc
+  resources:
+    requests:
+      storage: 20Gi       # EFS is elastic; this is a logical request
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-gpu-pv
+spec:
+  replicas: 2              # Multiple replicas sharing the same PV
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: vllm-gpu-pv
+  template:
+    metadata:
+      labels:
+        app: vllm-gpu-pv
+    spec:
+      nodeSelector:
+        workload: gpu
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      # Init-container: download model to PV if not already present.
+      # Runs once; subsequent pods find the model already on EFS.
+      initContainers:
+        - name: model-downloader
+          image: python:3.11-slim
+          command:
+            - bash
+            - -c
+            - |
+              set -e
+              MODEL_DIR="/models/Qwen--Qwen2.5-3B-Instruct"
+              if [ -d "$MODEL_DIR" ] && [ -f "$MODEL_DIR/config.json" ]; then
+                echo "Model already exists on PV, skipping download."
+                exit 0
+              fi
+              pip install -q huggingface_hub
+              python3 -c "
+              from huggingface_hub import snapshot_download
+              snapshot_download(
+                  'Qwen/Qwen2.5-3B-Instruct',
+                  local_dir='/models/Qwen--Qwen2.5-3B-Instruct',
+                  local_dir_use_symlinks=False,
+              )
+              "
+              echo "Download complete."
+          volumeMounts:
+            - name: model-store
+              mountPath: /models
+          resources:
+            requests:
+              cpu: "1"
+              memory: "2Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+      containers:
+        - name: vllm
+          image: vllm/vllm-openai:latest
+          args:
+            - --model=/models/Qwen--Qwen2.5-3B-Instruct
+            - --served-model-name=qwen25-3b-gpu
+            - --host=0.0.0.0
+            - --port=8000
+            - --dtype=half
+            - --max-model-len=4096
+            - --gpu-memory-utilization=0.85
+          ports:
+            - containerPort: 8000
+              name: http
+          resources:
+            requests:
+              cpu: "3"
+              memory: "12Gi"
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "4"
+              memory: "16Gi"
+              nvidia.com/gpu: "1"
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 60
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: model-store
+              mountPath: /models
+              readOnly: true     # Read-only: enables OS page cache, zero lock contention
+      volumes:
+        - name: model-store
+          persistentVolumeClaim:
+            claimName: model-store-efs

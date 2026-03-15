@@ -11,6 +11,7 @@ It does not run an LLM. It verifies that:
 ## Deploy
 
 ```bash
+kubectl apply -f kubernetes/ai-example-namespace.yaml
 kubectl apply -k kubernetes/ex-inferentia-smoke-inf2
 kubectl get nodeclaims -w
 kubectl get pods -n ai-example -w
@@ -65,3 +66,6 @@ You should see:
 ```bash
 kubectl delete -k kubernetes/ex-inferentia-smoke-inf2
 ```
+
+Note:
+- This cleanup does not delete namespace `ai-example` anymore (shared namespace).

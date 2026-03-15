@@ -12,6 +12,7 @@ This sample deploys `Qwen/Qwen2.5-3B-Instruct` on the GPU lane with `vLLM` and e
 ## Apply
 
 ```bash
+kubectl apply -f kubernetes/ai-example-namespace.yaml
 kubectl apply -k kubernetes/ex-vllm-qwen25-3b-gpu
 kubectl get nodeclaims -w
 kubectl get pods -n ai-example -w
@@ -51,3 +52,6 @@ curl http://127.0.0.1:8000/v1/chat/completions \
 ```bash
 kubectl delete -k kubernetes/ex-vllm-qwen25-3b-gpu
 ```
+
+Note:
+- This cleanup does not delete namespace `ai-example` anymore (shared namespace).

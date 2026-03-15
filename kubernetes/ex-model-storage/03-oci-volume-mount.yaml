@@ -1,0 +1,104 @@
+# Strategy 4: OCI Image Volume Mount (Kubernetes 1.31+)
+#
+# The model is packaged as an OCI image and mounted directly as a read-only volume.
+# No init-containers, no symlinks, no process namespace sharing.
+#
+# Pros:
+#   - Cleanest approach — native Kubernetes feature
+#   - Full OCI layer caching (containerd/CRI-O cache model layers like container layers)
+#   - Immutable, versioned model artifacts (tag = version)
+#   - Layer sharing for LoRA: base model as shared layers, adapters as additional layers
+# Cons:
+#   - Requires Kubernetes 1.31+ with ImageVolume feature gate enabled
+#   - Requires containerd 2.0+ or CRI-O 1.33+
+#   - Beta as of Kubernetes 1.35
+#   - Must build and push the model as an OCI image first
+#
+# Best for: future-proof deployments, multi-model with shared base layers
+#
+# Building the OCI model image (example with crane):
+#
+#   # Download model locally
+#   huggingface-cli download Qwen/Qwen2.5-3B-Instruct --local-dir ./qwen25-3b
+#
+#   # Package as OCI image and push to ECR
+#   crane append \
+#     --new_tag $ACCOUNT.dkr.ecr.$REGION.amazonaws.com/models/qwen25-3b:v1 \
+#     --new_layer <(tar -C ./qwen25-3b -cf - .) \
+#     --platform linux/amd64
+#
+# See: docs/model-data-summary.md — Strategy 4
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-gpu-oci
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: vllm-gpu-oci
+  template:
+    metadata:
+      labels:
+        app: vllm-gpu-oci
+    spec:
+      nodeSelector:
+        workload: gpu
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      containers:
+        - name: vllm
+          image: vllm/vllm-openai:latest
+          args:
+            # Model path points to the OCI volume mount — no download needed.
+            - --model=/models
+            - --served-model-name=qwen25-3b-gpu
+            - --host=0.0.0.0
+            - --port=8000
+            - --dtype=half
+            - --max-model-len=4096
+            - --gpu-memory-utilization=0.85
+          ports:
+            - containerPort: 8000
+              name: http
+          resources:
+            requests:
+              cpu: "3"
+              memory: "12Gi"
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "4"
+              memory: "16Gi"
+              nvidia.com/gpu: "1"
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 60
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: model-volume
+              mountPath: /models
+              readOnly: true
+      volumes:
+        # OCI Image Volume: the model IS the image.
+        # Kubernetes pulls it like a container image, caches layers, mounts read-only.
+        # Replace with your ECR URI containing the packaged model.
+        - name: model-volume
+          image:
+            reference: 023890853822.dkr.ecr.us-east-1.amazonaws.com/models/qwen25-3b:v1
+            pullPolicy: IfNotPresent
