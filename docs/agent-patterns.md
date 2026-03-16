@@ -450,13 +450,13 @@ Uses a **small, fast model** (8B) because it's doing lightweight summarization, 
 
 ```bash
 # Fetch REAL news from Tavily and ingest
-./.venv/bin/python agents/context_analyst/ingest_context.py --fetch-news
+python agents/context_analyst/ingest_context.py --fetch-news
 
 # Ingest sample contexts (no API key needed)
-./.venv/bin/python agents/context_analyst/ingest_context.py --sample
+python agents/context_analyst/ingest_context.py --sample
 
 # Ingest custom text
-./.venv/bin/python agents/context_analyst/ingest_context.py --asset BTC --source news \
+python agents/context_analyst/ingest_context.py --asset BTC --source news \
   --text "BTC ETF net inflows +$420M in 24h..."
 ```
 

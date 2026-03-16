@@ -1,6 +1,6 @@
-# ex-vllm-neuron-llama32-3b-inf2
+# 04-vllm-neuron-tinyllama-1b-inf2
 
-This sample deploys a Llama-compatible model on Inferentia (`inf2`) using vLLM with Neuron SDK.
+Deploys TinyLlama 1.1B on Inferentia (`inf2.xlarge`) using vLLM with Neuron SDK.
 
 - Default model: `TinyLlama/TinyLlama-1.1B-Chat-v1.0` (fits on inf2.xlarge)
 - Served model name: `tinyllama-1b-neuron`
@@ -45,7 +45,7 @@ Notes:
 Run from this folder:
 
 ```bash
-cd kubernetes/ex-vllm-neuron-llama32-3b-inf2
+cd kubernetes/examples/04-vllm-neuron-tinyllama-1b-inf2
 AWS_REGION=us-east-1 \
 ECR_REPO=vllm-neuron \
 IMAGE_TAG=latest \
@@ -126,7 +126,7 @@ The Docker image is the **inference runtime** — all the software needed to run
 - **The image (runtime)** changes rarely — only when upgrading vLLM or Neuron SDK.
 - **The model** changes often — you can try Llama, Mistral, etc. without rebuilding the image.
 - The `--model` arg in the deployment YAML controls which model is loaded at startup.
-- This maps to the storage strategies described in [`kubernetes/ex-model-storage/`](../ex-model-storage/).
+- This maps to the storage strategies described in [`01-model-storage/`](../01-model-storage/).
 
 ### GPU image vs Neuron image
 
@@ -176,7 +176,7 @@ kubectl create secret generic huggingface-token \
 If your approval is still pending, keep deployment paused:
 
 ```bash
-kubectl scale deployment/vllm-neuron-llama32-3b --replicas=0 -n ai-example
+kubectl scale deployment/vllm-neuron-tinyllama-1b --replicas=0 -n ai-example
 ```
 
 ## 3) Deploy and enable the workload
@@ -186,11 +186,11 @@ export AWS_REGION=us-east-1
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 export IMAGE_URI=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/vllm-neuron:latest
 
-kubectl apply -f kubernetes/ai-example-namespace.yaml
-kubectl apply -k kubernetes/ex-vllm-neuron-llama32-3b-inf2
-kubectl set image deployment/vllm-neuron-llama32-3b vllm-neuron="${IMAGE_URI}" -n ai-example
-kubectl scale deployment/vllm-neuron-llama32-3b --replicas=1 -n ai-example
-kubectl rollout status deployment/vllm-neuron-llama32-3b -n ai-example
+kubectl apply -f kubernetes/examples/00-namespace.yaml
+kubectl apply -k kubernetes/examples/04-vllm-neuron-tinyllama-1b-inf2
+kubectl set image deployment/vllm-neuron-tinyllama-1b vllm-neuron="${IMAGE_URI}" -n ai-example
+kubectl scale deployment/vllm-neuron-tinyllama-1b --replicas=1 -n ai-example
+kubectl rollout status deployment/vllm-neuron-tinyllama-1b -n ai-example
 ```
 
 ## 4) Verify
@@ -198,13 +198,13 @@ kubectl rollout status deployment/vllm-neuron-llama32-3b -n ai-example
 ```bash
 kubectl get nodeclaims -w
 kubectl get pods -n ai-example -w
-kubectl logs -n ai-example deploy/vllm-neuron-llama32-3b -f
+kubectl logs -n ai-example deploy/vllm-neuron-tinyllama-1b -f
 ```
 
 Port-forward:
 
 ```bash
-kubectl port-forward -n ai-example svc/vllm-neuron-llama32-3b 8000:8000
+kubectl port-forward -n ai-example svc/vllm-neuron-tinyllama-1b 8000:8000
 ```
 
 In another terminal:
@@ -213,7 +213,7 @@ In another terminal:
 curl http://127.0.0.1:8000/health
 curl http://127.0.0.1:8000/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -d @kubernetes/ex-vllm-neuron-llama32-3b-inf2/request.chat-test.json
+  -d @kubernetes/examples/04-vllm-neuron-tinyllama-1b-inf2/request.chat-test.json
 ```
 
 ## Troubleshooting
@@ -222,7 +222,7 @@ If pod is `ImagePullBackOff`:
 
 ```bash
 aws ecr list-images --repository-name vllm-neuron --region us-east-1
-kubectl describe pod -n ai-example -l app=vllm-neuron-llama32-3b
+kubectl describe pod -n ai-example -l app=vllm-neuron-tinyllama-1b
 ```
 
 If pod is `CrashLoopBackOff` with:
@@ -232,20 +232,20 @@ If pod is `CrashLoopBackOff` with:
 then rebuild and push image with this repo's updated `Dockerfile.neuron` (pins `triton==3.0.0`), then redeploy:
 
 ```bash
-kubectl scale deployment/vllm-neuron-llama32-3b --replicas=0 -n ai-example
+kubectl scale deployment/vllm-neuron-tinyllama-1b --replicas=0 -n ai-example
 
-cd kubernetes/ex-vllm-neuron-llama32-3b-inf2
+cd kubernetes/examples/04-vllm-neuron-tinyllama-1b-inf2
 AWS_REGION=us-east-1 ECR_REPO=vllm-neuron IMAGE_TAG=latest VLLM_REF=v0.6.0 ./build-and-push-ecr-ec2.sh
 
-kubectl apply -k kubernetes/ex-vllm-neuron-llama32-3b-inf2
-kubectl scale deployment/vllm-neuron-llama32-3b --replicas=1 -n ai-example
-kubectl rollout status deployment/vllm-neuron-llama32-3b -n ai-example
+kubectl apply -k kubernetes/examples/04-vllm-neuron-tinyllama-1b-inf2
+kubectl scale deployment/vllm-neuron-tinyllama-1b --replicas=1 -n ai-example
+kubectl rollout status deployment/vllm-neuron-tinyllama-1b -n ai-example
 ```
 
 If pod is `CrashLoopBackOff` with `401`/`403` against Hugging Face:
 
 ```bash
-kubectl logs -n ai-example deploy/vllm-neuron-llama32-3b --previous --tail=200
+kubectl logs -n ai-example deploy/vllm-neuron-tinyllama-1b --previous --tail=200
 ```
 
 Fix path:
@@ -260,8 +260,8 @@ Fix path:
 After fixing access:
 
 ```bash
-kubectl rollout restart deployment/vllm-neuron-llama32-3b -n ai-example
-kubectl rollout status deployment/vllm-neuron-llama32-3b -n ai-example
+kubectl rollout restart deployment/vllm-neuron-tinyllama-1b -n ai-example
+kubectl rollout status deployment/vllm-neuron-tinyllama-1b -n ai-example
 ```
 
 If pod is `CrashLoopBackOff` with:
@@ -272,20 +272,20 @@ rebuild image with this repo's `Dockerfile.neuron` (pins compatible libs:
 `transformers==4.44.2`, `tokenizers==0.19.1`) and redeploy:
 
 ```bash
-kubectl scale deployment/vllm-neuron-llama32-3b --replicas=0 -n ai-example
+kubectl scale deployment/vllm-neuron-tinyllama-1b --replicas=0 -n ai-example
 
-cd kubernetes/ex-vllm-neuron-llama32-3b-inf2
+cd kubernetes/examples/04-vllm-neuron-tinyllama-1b-inf2
 AWS_REGION=us-east-1 ECR_REPO=vllm-neuron IMAGE_TAG=latest VLLM_REF=v0.6.0 ./build-and-push-ecr-ec2.sh
 
-kubectl apply -k kubernetes/ex-vllm-neuron-llama32-3b-inf2
-kubectl scale deployment/vllm-neuron-llama32-3b --replicas=1 -n ai-example
-kubectl rollout status deployment/vllm-neuron-llama32-3b -n ai-example
+kubectl apply -k kubernetes/examples/04-vllm-neuron-tinyllama-1b-inf2
+kubectl scale deployment/vllm-neuron-tinyllama-1b --replicas=1 -n ai-example
+kubectl rollout status deployment/vllm-neuron-tinyllama-1b -n ai-example
 ```
 
 If pod restarts with `OOMKilled` (`exitCode: 137`) while loading model shards:
 
 ```bash
-kubectl get pod -n ai-example -l app=vllm-neuron-llama32-3b \
+kubectl get pod -n ai-example -l app=vllm-neuron-tinyllama-1b \
   -o jsonpath='{.items[0].status.containerStatuses[0].lastState.terminated.reason}{" "}{.items[0].status.containerStatuses[0].lastState.terminated.exitCode}{"\n"}'
 ```
 
@@ -296,9 +296,9 @@ Only models ≤2B (TinyLlama, Llama-3.2-1B) fit on inf2.xlarge. For 3B+ models, 
 Then roll deployment:
 
 ```bash
-kubectl apply -k kubernetes/ex-vllm-neuron-llama32-3b-inf2
-kubectl rollout restart deployment/vllm-neuron-llama32-3b -n ai-example
-kubectl rollout status deployment/vllm-neuron-llama32-3b -n ai-example --timeout=45m
+kubectl apply -k kubernetes/examples/04-vllm-neuron-tinyllama-1b-inf2
+kubectl rollout restart deployment/vllm-neuron-tinyllama-1b -n ai-example
+kubectl rollout status deployment/vllm-neuron-tinyllama-1b -n ai-example --timeout=45m
 ```
 
 If pod crashes with `ValueError: Model architectures ['...'] are not supported on Neuron`:
@@ -323,15 +323,15 @@ aws ec2 describe-instances --filters Name=tag:ManagedBy,Values=build-and-push-ec
 If pod is `Pending`:
 
 ```bash
-kubectl describe pod -n ai-example -l app=vllm-neuron-llama32-3b
+kubectl describe pod -n ai-example -l app=vllm-neuron-tinyllama-1b
 kubectl get nodeclaims
 ```
 
 ## Cleanup
 
 ```bash
-kubectl scale deployment -n ai-example vllm-neuron-llama32-3b --replicas=0
-kubectl delete -k kubernetes/ex-vllm-neuron-llama32-3b-inf2
+kubectl scale deployment -n ai-example vllm-neuron-tinyllama-1b --replicas=0
+kubectl delete -k kubernetes/examples/04-vllm-neuron-tinyllama-1b-inf2
 kubectl delete secret huggingface-token -n ai-example --ignore-not-found
 ```
 

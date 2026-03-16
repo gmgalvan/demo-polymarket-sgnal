@@ -2,6 +2,8 @@
 
 ### Multi-Architecture LLM Serving on Amazon EKS
 
+![AI Stack del Reino Champiñón](docs/intro.png)
+
 > Deploying GenAI shouldn't be a hardware headache. Whether you run on NVIDIA GPUs or AWS Inferentia, Amazon EKS is the ultimate orchestrator.
 
 ---
@@ -162,27 +164,25 @@ Only 2 out of 14 components need expensive GPU or Inferentia hardware. The rest 
 ```
 ├── CLAUDE.md              # AI assistant context
 ├── README.md              # You are here
-├── docs/
-│   ├── architecture.md    # Architecture decisions and rationale
-│   ├── components.md      # Component descriptions and responsibilities
-│   ├── models.md          # Model selection, quantization, compilation
-│   ├── agent-patterns.md  # Multi-agent Strands patterns (Graph, Vigía, FunctionNode)
-│   ├── talk-outline.md    # Talk narrative and timing
-│   └── agent_flow.mermaid # Agent flow diagram (Vigía → Estratega → Mensajero)
-├── infra/                 # EKS cluster, node pools, device plugins
-├── platform/              # LiteLLM gateway, vLLM deployments, observability
-├── agents/
-│   ├── strategist/        # Reasoning agent + prompts + RAG tool
-│   ├── broadcaster/       # Deterministic EV/Kelly FunctionNode
-│   ├── watchdog/          # asyncio WebSocket monitor
-│   └── context_analyst/   # Background RAG agent + ingest CLI
-├── services/
-│   ├── polymarket/        # Polymarket MCP server
-│   ├── technical_analysis/# TA indicators MCP server
-│   ├── web_search/        # Tavily web search MCP server
-│   └── vectorstore/       # VectorStore abstraction (Chroma/Milvus/OpenSearch)
-├── distribution/          # EventBridge rules and subscriber functions
-└── demo/                  # Demo scripts and utilities
+├── docs/                  # Architecture docs, talk materials, diagrams
+├── infrastructure/        # Terraform IaC (networking, IAM, EKS, cluster services)
+├── kubernetes/            # K8s manifests (Inferentia, GPU, model storage examples)
+├── specs/                 # Planning docs
+└── demo-polymarket/       # Application code (agent + services + demo scripts)
+    ├── pyproject.toml     # Python package config
+    ├── docker-compose.yml # Local MCP servers + ChromaDB
+    ├── agents/
+    │   ├── strategist/    # Reasoning agent + prompts + RAG tool
+    │   ├── broadcaster/   # Deterministic EV/Kelly FunctionNode
+    │   ├── watchdog/      # asyncio WebSocket monitor
+    │   └── context_analyst/ # Background RAG agent + ingest CLI
+    ├── services/
+    │   ├── polymarket/        # Polymarket MCP server
+    │   ├── technical_analysis/# TA indicators MCP server
+    │   ├── web_search/        # Tavily web search MCP server
+    │   └── vectorstore/       # VectorStore abstraction (Chroma/OpenSearch)
+    ├── tests/             # pytest test suite
+    └── demo/              # Demo scripts (trigger_local, watchdog loop)
 ```
 
 ## Local Runbook (Current)
@@ -190,6 +190,7 @@ Only 2 out of 14 components need expensive GPU or Inferentia hardware. The rest 
 ### 1) Setup
 
 ```bash
+cd demo-polymarket
 uv venv
 uv pip install -e ".[dev]"   # installs package in editable mode — required to avoid ModuleNotFoundError
 cp .env.example .env
@@ -202,6 +203,7 @@ Required in `.env`:
 ### 2) Start MCP servers + ChromaDB
 
 ```bash
+cd demo-polymarket
 docker compose up -d
 docker compose ps
 ```
@@ -210,15 +212,20 @@ Services started: `polymarket` (8001), `technical-analysis` (8002), `web-search`
 
 ### 3) Ingest context into vector DB (Phase 4 / RAG)
 
+All python commands below assume you are in `demo-polymarket/` and the venv is active.
+
 ```bash
+cd demo-polymarket
+source ../.venv/bin/activate   # venv lives at repo root
+
 # Option A — fetch REAL BTC news from Tavily (requires TAVILY_API_KEY in .env)
-./.venv/bin/python agents/context_analyst/ingest_context.py --fetch-news
+python agents/context_analyst/ingest_context.py --fetch-news
 
 # Option B — ingest built-in sample contexts (works without API keys)
-./.venv/bin/python agents/context_analyst/ingest_context.py --sample
+python agents/context_analyst/ingest_context.py --sample
 
 # Option C — ingest custom text
-./.venv/bin/python agents/context_analyst/ingest_context.py --asset BTC --source news --text "BTC broke $85k..."
+python agents/context_analyst/ingest_context.py --asset BTC --source news --text "BTC broke $85k..."
 ```
 
 > **Hybrid memory**: `--fetch-news` pulls real Tavily articles into ChromaDB as historical context. Once the agent loop is running with `USE_RAG=true`, every GO signal is automatically ingested as a `signal_log` entry — the system builds memory of what setups actually worked.
@@ -229,33 +236,33 @@ Services started: `polymarket` (8001), `technical-analysis` (8002), `web-search`
 
 ```bash
 # Minimal — no MCP, no RAG
-./.venv/bin/python demo/trigger_local.py
+python demo/trigger_local.py
 
 # With RAG (reads from ChromaDB)
-USE_RAG=true ./.venv/bin/python demo/trigger_local.py
+USE_RAG=true python demo/trigger_local.py
 ```
 
 **Watchdog loop** (continuous, mock data):
 
 ```bash
-./.venv/bin/python demo/run_watchdog_loop.py --mode mock --max-events 3 --use-mcp false
+python demo/run_watchdog_loop.py --mode mock --max-events 3 --use-mcp false
 
 # With RAG
-USE_RAG=true ./.venv/bin/python demo/run_watchdog_loop.py --mode mock --max-events 3 --use-mcp false
+USE_RAG=true python demo/run_watchdog_loop.py --mode mock --max-events 3 --use-mcp false
 ```
 
 **Live WebSocket loop** (real Coinbase + Polymarket):
 
 ```bash
-USE_RAG=true ./.venv/bin/python demo/run_watchdog_loop.py --mode websocket --use-mcp true
+USE_RAG=true python demo/run_watchdog_loop.py --mode websocket --use-mcp true
 
 # Optional: force Binance fallback provider
-MARKET_DATA_PROVIDER=binance USE_RAG=true ./.venv/bin/python demo/run_watchdog_loop.py --mode websocket --use-mcp true
+MARKET_DATA_PROVIDER=binance USE_RAG=true python demo/run_watchdog_loop.py --mode websocket --use-mcp true
 ```
 
-### 4) Log tracking (services + agent)
+### 5) Log tracking (services + agent)
 
-Recommended terminal split:
+Recommended terminal split (all from `demo-polymarket/`):
 
 Terminal A (MCP services):
 
@@ -274,7 +281,7 @@ Terminal C (run agent loop + persist logs):
 
 ```bash
 mkdir -p logs
-./.venv/bin/python demo/run_watchdog_loop.py --mode websocket --use-mcp true 2>&1 | tee -a logs/agent-loop.log
+python demo/run_watchdog_loop.py --mode websocket --use-mcp true 2>&1 | tee -a logs/agent-loop.log
 ```
 
 Useful log filters:

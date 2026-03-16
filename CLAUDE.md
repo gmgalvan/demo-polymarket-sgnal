@@ -4,6 +4,7 @@
 
 > **Local setup note:** The package must be installed in editable mode before running any script, otherwise `ModuleNotFoundError: No module named 'agents'` is raised.
 > ```bash
+> cd demo-polymarket
 > uv pip install -e ".[dev]"   # or: pip install -e .
 > ```
 
@@ -51,18 +52,18 @@ Device plugins expose hardware accelerators to Kubernetes so pods can request th
 
 A Strands Graph-based architecture with specialized components. See `docs/agent-patterns.md` for full details and `docs/agent_flow.mermaid` for the visual diagram.
 
-- **El Vigía** — asyncio watchdog (not a Strands agent). Monitors Coinbase (default) or Binance + Polymarket WebSockets 24/7 on ARM, triggers the Graph on candle close or volatility spike.
-- **El Estratega** — Graph entry_point node. Reasons with a large model (30B-70B) via LiteLLM gateway + RAG from vector database. Emits GO/NO_GO with probability estimate.
-- **Arista Condicional** — Pure Python function that routes the Graph based on the Estratega's decision. No LLM.
-- **El Mensajero** — FunctionNode. Calculates EV/Kelly, formats signal, sends to subscribers. 100% deterministic, no LLM.
-- **Analista de Contexto** — Background agent that feeds the vector database for RAG.
+- **Watchdog** — asyncio watchdog (not a Strands agent). Monitors Coinbase (default) or Binance + Polymarket WebSockets 24/7 on ARM, triggers the Graph on candle close or volatility spike.
+- **Strategist** — Graph entry_point node. Reasons with a large model (30B-70B) via LiteLLM gateway + RAG from vector database. Emits GO/NO_GO with probability estimate.
+- **Conditional Edge** — Pure Python function that routes the Graph based on the Strategist's decision. No LLM.
+- **Broadcaster** — FunctionNode. Calculates EV/Kelly, formats signal, sends to subscribers. 100% deterministic, no LLM.
+- **Context Analyst** — Background agent that feeds the vector database for RAG.
 
 - **MCP Servers (separate Pods on ARM):**
   - **Polymarket API** — Real-time market data: active markets, odds, volume, price history.
   - **Technical Analysis** — Quantitative indicators: RSI, MACD, Bollinger Bands, VWAP. The LLM is bad at math — we delegate calculations to specialized tools.
   - **Web Search** — Recent news and sentiment via Tavily API.
 
-**Important distinction:** MCP servers handle external data retrieval (network I/O, reusable across agents). Deterministic logic (EV/Kelly, formatting, notification) lives in the Mensajero FunctionNode. See `docs/architecture.md` Decision 3 for the full rationale.
+**Important distinction:** MCP servers handle external data retrieval (network I/O, reusable across agents). Deterministic logic (EV/Kelly, formatting, notification) lives in the Broadcaster FunctionNode. See `docs/architecture.md` Decision 3 for the full rationale.
 
 ### Layer 3: Distribution (EventBridge)
 
@@ -107,10 +108,10 @@ See `docs/models.md` for full details. Summary:
 
 | Component | Model | Hardware | Connection |
 |-----------|-------|----------|------------|
-| El Estratega (reasoning) | Qwen3-30B or Llama 3.1 70B (quantized) | GPU via vLLM | Via LiteLLM gateway |
-| Analista de Contexto (background) | Llama 3.1 8B-Instruct | GPU or Inferentia via vLLM | Via LiteLLM gateway |
-| El Mensajero | None (deterministic) | ARM node | N/A |
-| El Vigía | None (asyncio) | ARM node | N/A |
+| Strategist (reasoning) | Qwen3-30B or Llama 3.1 70B (quantized) | GPU via vLLM | Via LiteLLM gateway |
+| Context Analyst (background) | Llama 3.1 8B-Instruct | GPU or Inferentia via vLLM | Via LiteLLM gateway |
+| Broadcaster | None (deterministic) | ARM node | N/A |
+| Watchdog | None (asyncio) | ARM node | N/A |
 
 LiteLLM handles routing and failover. The agents connect to the gateway, never directly to vLLM.
 
@@ -129,23 +130,23 @@ reasoning_model = LiteLLMModel(
     base_url="http://litellm-gateway:4000",
 )
 
-# El Estratega — reasoning agent (entry_point)
-estratega = Agent(
-    name="estratega",
+# Strategist — reasoning agent (entry_point)
+strategist = Agent(
+    name="strategist",
     model=reasoning_model,
     system_prompt="You are a market analyst for BTC prediction markets...",
     tools=[query_vectordb, get_market_snapshot],
 )
 
-# Graph: Estratega → (condition) → Mensajero
+# Graph: Strategist → (condition) → Broadcaster
 builder = GraphBuilder()
-builder.add_node(estratega, "estratega")
-builder.add_node(BroadcasterNode(), "mensajero")  # FunctionNode, no LLM
-builder.add_edge("estratega", "mensajero", condition=has_positive_ev)
-builder.set_entry_point("estratega")
+builder.add_node(strategist, "strategist")
+builder.add_node(BroadcasterNode(), "broadcaster")  # FunctionNode, no LLM
+builder.add_edge("strategist", "broadcaster", condition=has_positive_ev)
+builder.set_entry_point("strategist")
 graph = builder.build()
 
-# El Vigía triggers the Graph
+# Watchdog triggers the Graph
 result = graph.invoke("Analyze BTC 15min candle", invocation_state={...})
 ```
 
@@ -164,45 +165,36 @@ The agent connects to models via LiteLLM, never directly to vLLM. This is what m
 ```
 ├── CLAUDE.md                  # This file — AI assistant context
 ├── README.md                  # Project overview and quickstart
-├── docs/
-│   ├── architecture.md        # Architecture decisions and rationale
-│   ├── components.md          # Component descriptions and responsibilities
-│   ├── models.md              # Model selection, quantization, compilation
-│   ├── agent-patterns.md      # Multi-agent Strands patterns (Graph, FunctionNode, Vigía)
-│   ├── talk-outline.md        # Talk structure and narrative
-│   └── agent_flow.mermaid     # Agent flow diagram (Vigía → Estratega → Mensajero)
-├── infra/                     # Infrastructure-as-code
-│   ├── cluster/               # EKS cluster setup (Terraform)
-│   ├── node-pools/            # Karpenter node pool definitions
-│   └── device-plugins/        # NVIDIA and Neuron device plugin DaemonSets
-├── platform/                  # Platform services
-│   ├── model-gateway/         # LiteLLM deployment and config
-│   ├── model-serving/         # vLLM deployments (GPU + Neuron)
-│   └── observability/         # LangFuse + Prometheus/Grafana stack
-├── agents/                    # Agent application code
-│   ├── orchestrator/          # Main Strands agent + system prompt
-│   └── tools/                 # Native @tool functions (EV, Kelly, signal, publish)
-├── services/                  # MCP servers
-│   ├── polymarket/            # Polymarket API MCP server
-│   ├── technical-analysis/    # TA indicators MCP server (RSI, MACD, etc.)
-│   └── web-search/            # Tavily web search MCP server
-├── distribution/              # Signal distribution
-│   ├── event-bus/             # EventBridge rules and configuration
-│   └── subscribers/           # Telegram bot, dashboard Lambda functions
-└── demo/                      # Demo scripts and utilities
-    ├── trigger.sh             # Manually trigger the agent
-    └── sample-signals/        # Example signal outputs
+├── docs/                      # Architecture docs, talk materials, diagrams
+├── infrastructure/            # Terraform IaC (networking, IAM, EKS, cluster services)
+├── kubernetes/                # K8s manifests (Inferentia, GPU, model storage examples)
+├── specs/                     # Planning docs
+└── demo-polymarket/           # Application code (agent + services + demo scripts)
+    ├── pyproject.toml         # Python package config
+    ├── docker-compose.yml     # Local MCP servers + ChromaDB
+    ├── agents/                # Agent application code
+    │   ├── strategist/        # Reasoning agent + prompts + RAG tool
+    │   ├── broadcaster/       # Deterministic EV/Kelly FunctionNode
+    │   ├── watchdog/          # asyncio WebSocket monitor
+    │   └── context_analyst/   # Background RAG agent + ingest CLI
+    ├── services/              # MCP servers
+    │   ├── polymarket/        # Polymarket API MCP server
+    │   ├── technical_analysis/# TA indicators MCP server (RSI, MACD, etc.)
+    │   ├── web_search/        # Tavily web search MCP server
+    │   └── vectorstore/       # VectorStore abstraction (Chroma/OpenSearch)
+    ├── tests/                 # pytest test suite
+    └── demo/                  # Demo scripts and utilities
 ```
 
 ## Agent Architecture
 
 The demo uses the Strands Graph pattern with specialized components. See `docs/agent-patterns.md` for full details and `docs/agent_flow.mermaid` for the visual diagram.
 
-- **El Vigía** — asyncio watchdog that triggers the Graph (not a Strands agent, no LLM). Monitors Coinbase + Polymarket WebSockets 24/7 on ARM.
-- **El Estratega** — Graph entry_point node with reasoning model (30B-70B) and RAG. Decides GO/NO_GO.
-- **Arista Condicional** — Python function routing GO/NO_GO based on GraphState. No LLM.
-- **El Mensajero** — FunctionNode (custom MultiAgentBase) for deterministic EV/Kelly calculation and notification dispatch. No LLM.
-- **Analista de Contexto** — Background agent feeding the vector database for RAG.
+- **Watchdog** — asyncio watchdog that triggers the Graph (not a Strands agent, no LLM). Monitors Coinbase + Polymarket WebSockets 24/7 on ARM.
+- **Strategist** — Graph entry_point node with reasoning model (30B-70B) and RAG. Decides GO/NO_GO.
+- **Conditional Edge** — Python function routing GO/NO_GO based on GraphState. No LLM.
+- **Broadcaster** — FunctionNode (custom MultiAgentBase) for deterministic EV/Kelly calculation and notification dispatch. No LLM.
+- **Context Analyst** — Background agent feeding the vector database for RAG.
 
 Key patterns: `invocation_state` (shared context invisible to LLM), structured output (Pydantic models for reliable conditional edge parsing).
 

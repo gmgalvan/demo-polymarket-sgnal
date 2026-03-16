@@ -1,4 +1,4 @@
-# ex-inferentia-smoke-inf2
+# 02-inferentia-smoke-inf2
 
 This sample validates Inferentia scheduling and Neuron resource wiring on EKS.
 
@@ -11,8 +11,8 @@ It does not run an LLM. It verifies that:
 ## Deploy
 
 ```bash
-kubectl apply -f kubernetes/ai-example-namespace.yaml
-kubectl apply -k kubernetes/ex-inferentia-smoke-inf2
+kubectl apply -f kubernetes/examples/00-namespace.yaml
+kubectl apply -k kubernetes/examples/02-inferentia-smoke-inf2
 kubectl get nodeclaims -w
 kubectl get pods -n ai-example -w
 kubectl rollout status deployment/neuron-smoke-inf2 -n ai-example
@@ -64,7 +64,7 @@ You should see:
 ## Cleanup
 
 ```bash
-kubectl delete -k kubernetes/ex-inferentia-smoke-inf2
+kubectl delete -k kubernetes/examples/02-inferentia-smoke-inf2
 ```
 
 Note:

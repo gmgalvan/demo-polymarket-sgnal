@@ -1,4 +1,4 @@
-# ex-model-storage
+# 01-model-storage
 
 Example manifests demonstrating different strategies for bringing LLM model data into Kubernetes pods. Each file corresponds to a strategy described in [docs/model-data-summary.md](../../docs/model-data-summary.md).
 
@@ -85,7 +85,7 @@ FSx for Lustre infrastructure is not included in this repo but would follow the 
 Infrastructure required: **None**
 
 ```bash
-kubectl apply -f kubernetes/ex-model-storage/01-emptydir-download.yaml -n ai-example
+kubectl apply -f kubernetes/examples/01-model-storage/01-emptydir-download.yaml -n ai-example
 ```
 
 ## Strategy 2: PersistentVolume with EFS
@@ -98,7 +98,7 @@ Infrastructure required:
 - StorageClass `efs-sc` (created by the Terraform above)
 
 ```bash
-kubectl apply -f kubernetes/ex-model-storage/02-pv-efs.yaml -n ai-example
+kubectl apply -f kubernetes/examples/01-model-storage/02-pv-efs.yaml -n ai-example
 ```
 
 Key details:
@@ -138,7 +138,7 @@ crane append \
 ```
 
 ```bash
-kubectl apply -f kubernetes/ex-model-storage/03-oci-volume-mount.yaml -n ai-example
+kubectl apply -f kubernetes/examples/01-model-storage/03-oci-volume-mount.yaml -n ai-example
 ```
 
 ---

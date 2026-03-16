@@ -37,12 +37,18 @@ These are the functions the Strategist LLM can call during a graph invocation:
 | `calculate_macd` | Technical Analysis MCP | MACD line, signal line, histogram |
 | `calculate_bollinger_bands` | Technical Analysis MCP | Upper/mid/lower bands, %B position |
 | `get_sentiment_summary` | Web Search MCP | Recent news headlines + sentiment label via Tavily |
-| `query_vectordb` | `agents/strategist/tools_rag.py` | Semantic search over ChromaDB — returns top-K past signals and news summaries (only active when `USE_RAG=true`) |
+| `query_vectordb` | `demo-polymarket/agents/strategist/tools_rag.py` | Semantic search over ChromaDB — returns top-K past signals and news summaries (only active when `USE_RAG=true`) |
 | `StrategistDecision` | Strands structured output | Not a real tool — it's the Pydantic model the Strategist must emit before the graph routes to the next node |
 
 ---
 
 ## Commands
+
+> **All commands below assume you are in `demo-polymarket/` with the venv activated:**
+> ```bash
+> cd demo-polymarket
+> source ../.venv/bin/activate
+> ```
 
 ### `demo/trigger_local.py` — Single-shot graph test
 
@@ -50,14 +56,14 @@ Runs one graph invocation with hardcoded market data. No Watchdog, no WebSockets
 
 ```bash
 # Default scenario (bullish)
-.venv/bin/python demo/trigger_local.py
+python demo/trigger_local.py
 
 # With RAG enabled (Strategist queries ChromaDB before deciding)
-USE_RAG=true .venv/bin/python demo/trigger_local.py
+USE_RAG=true python demo/trigger_local.py
 
 # Choose a specific scenario
-.venv/bin/python demo/trigger_local.py --scenario bearish
-.venv/bin/python demo/trigger_local.py --scenario no_go
+python demo/trigger_local.py --scenario bearish
+python demo/trigger_local.py --scenario no_go
 ```
 
 **Arguments:**
@@ -89,19 +95,19 @@ Runs the full pipeline: Watchdog listens for events → triggers graph → logs 
 
 ```bash
 # Mock mode — deterministic, no external connections
-.venv/bin/python demo/run_watchdog_loop.py --mode mock --max-events 3
+python demo/run_watchdog_loop.py --mode mock --max-events 3
 
 # Mock mode with RAG and MCP
-USE_RAG=true .venv/bin/python demo/run_watchdog_loop.py --mode mock --max-events 5 --use-mcp true
+USE_RAG=true python demo/run_watchdog_loop.py --mode mock --max-events 5 --use-mcp true
 
 # WebSocket mode — real Coinbase prices + Polymarket odds
-USE_RAG=true .venv/bin/python demo/run_watchdog_loop.py --mode websocket
+USE_RAG=true python demo/run_watchdog_loop.py --mode websocket
 
 # WebSocket mode, stop after 3 real triggers
-USE_RAG=true .venv/bin/python demo/run_watchdog_loop.py --mode websocket --max-events 3
+USE_RAG=true python demo/run_watchdog_loop.py --mode websocket --max-events 3
 
 # Force Binance provider (optional fallback)
-MARKET_DATA_PROVIDER=binance .venv/bin/python demo/run_watchdog_loop.py --mode websocket --max-events 3
+MARKET_DATA_PROVIDER=binance python demo/run_watchdog_loop.py --mode websocket --max-events 3
 ```
 
 **Arguments:**
@@ -144,18 +150,18 @@ Feeds text into ChromaDB so the Strategist can retrieve it via RAG (`query_vecto
 
 ```bash
 # Built-in sample data — no API keys needed, good for first test
-.venv/bin/python agents/context_analyst/ingest_context.py --sample
+python agents/context_analyst/ingest_context.py --sample
 
 # Real BTC news from Tavily (requires TAVILY_API_KEY in .env)
-.venv/bin/python agents/context_analyst/ingest_context.py --fetch-news
-.venv/bin/python agents/context_analyst/ingest_context.py --fetch-news --asset ETH
+python agents/context_analyst/ingest_context.py --fetch-news
+python agents/context_analyst/ingest_context.py --fetch-news --asset ETH
 
 # Ingest arbitrary text
-.venv/bin/python agents/context_analyst/ingest_context.py \
+python agents/context_analyst/ingest_context.py \
   --asset BTC --source news --text "BTC broke $85k on heavy volume..."
 
 # Pipe from stdin
-echo "BTC holding $82k support..." | .venv/bin/python agents/context_analyst/ingest_context.py
+echo "BTC holding $82k support..." | python agents/context_analyst/ingest_context.py
 ```
 
 **Arguments:**
@@ -172,11 +178,11 @@ echo "BTC holding $82k support..." | .venv/bin/python agents/context_analyst/ing
 
 ## Execution Flow — Step by Step
 
-This is what happens when you run `USE_RAG=true .venv/bin/python demo/trigger_local.py`:
+This is what happens when you run `USE_RAG=true python demo/trigger_local.py` from `demo-polymarket/`:
 
 ### Step 1 — Build the graph
 
-`build_graph()` in `agents/graph.py` constructs the Strands Graph:
+`build_graph()` in `demo-polymarket/agents/graph.py` constructs the Strands Graph:
 
 ```
 [Entry] Strategist ──(GO?)──► Broadcaster
@@ -281,7 +287,12 @@ When running `run_watchdog_loop.py` with `USE_RAG=true`, every GO signal is auto
 
 ## Recommended Local Setup (full stack)
 
+All terminals should run from `demo-polymarket/` with venv activated:
+
 ```bash
+cd demo-polymarket
+source ../.venv/bin/activate
+
 # Terminal A — start MCP services
 docker compose up -d
 
@@ -289,12 +300,12 @@ docker compose up -d
 docker compose logs -f polymarket technical-analysis web-search
 
 # Terminal C — ingest context once (only needed first time or when stale)
-.venv/bin/python agents/context_analyst/ingest_context.py --sample
+python agents/context_analyst/ingest_context.py --sample
 # or with real news:
-.venv/bin/python agents/context_analyst/ingest_context.py --fetch-news
+python agents/context_analyst/ingest_context.py --fetch-news
 
 # Terminal D — run the agent loop
-USE_RAG=true .venv/bin/python demo/run_watchdog_loop.py \
+USE_RAG=true python demo/run_watchdog_loop.py \
   --mode websocket --use-mcp true 2>&1 | tee -a logs/agent-loop.log
 ```
 

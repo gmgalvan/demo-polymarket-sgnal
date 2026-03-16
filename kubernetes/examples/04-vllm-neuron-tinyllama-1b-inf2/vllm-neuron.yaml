@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: vllm-neuron-llama32-3b
+  name: vllm-neuron-tinyllama-1b
 spec:
   replicas: 0
   strategy:
     type: Recreate
   selector:
     matchLabels:
-      app: vllm-neuron-llama32-3b
+      app: vllm-neuron-tinyllama-1b
   template:
     metadata:
       labels:
-        app: vllm-neuron-llama32-3b
+        app: vllm-neuron-tinyllama-1b
     spec:
       nodeSelector:
         workload: neuron
@@ -28,7 +28,7 @@ spec:
         - name: vllm-neuron
           # vLLM Neuron requires a custom image built from AWS Neuron DLC and pushed to ECR.
           # Replace this value with your own ECR URI before scaling replicas > 0.
-          image: 023890853822.dkr.ecr.us-east-1.amazonaws.com/vllm-neuron:latest
+          image: <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/vllm-neuron:latest
           imagePullPolicy: IfNotPresent
           args:
             - --model=TinyLlama/TinyLlama-1.1B-Chat-v1.0
@@ -99,10 +99,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: vllm-neuron-llama32-3b
+  name: vllm-neuron-tinyllama-1b
 spec:
   selector:
-    app: vllm-neuron-llama32-3b
+    app: vllm-neuron-tinyllama-1b
   ports:
     - name: http
       port: 8000

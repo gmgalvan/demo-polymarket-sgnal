@@ -100,5 +100,5 @@ spec:
         # Replace with your ECR URI containing the packaged model.
         - name: model-volume
           image:
-            reference: 023890853822.dkr.ecr.us-east-1.amazonaws.com/models/qwen25-3b:v1
+            reference: <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/models/qwen25-3b:v1
             pullPolicy: IfNotPresent
