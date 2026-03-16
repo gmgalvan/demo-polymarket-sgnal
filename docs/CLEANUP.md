@@ -26,7 +26,7 @@ cd /home/gmgalvan/demo-polymarket-signal
 
 kubectl delete -k kubernetes/ex-vllm-qwen25-3b-gpu --ignore-not-found
 kubectl delete -k kubernetes/ex-inferentia-smoke-inf2 --ignore-not-found
-kubectl delete -k kubernetes/ex-vllm-neuron-llama31-8b-inf2 --ignore-not-found
+kubectl delete -k kubernetes/ex-vllm-neuron-llama32-3b-inf2 --ignore-not-found
 
 kubectl delete deployment -n ai-example --all --ignore-not-found
 kubectl delete service -n ai-example --all --ignore-not-found

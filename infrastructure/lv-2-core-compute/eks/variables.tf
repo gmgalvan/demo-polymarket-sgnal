@@ -115,7 +115,7 @@ variable "l40s_node_disk_size" {
 variable "inferentia_instance_type" {
   description = "Inferentia-capable EC2 instance type for the Neuron node group."
   type        = string
-  default     = "inf2.8xlarge"
+  default     = "inf2.xlarge"
 }
 
 variable "inferentia_node_min_size" {

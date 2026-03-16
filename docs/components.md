@@ -57,7 +57,7 @@ These components are provisioned once and provide the foundation for everything 
 - Runs on Inferentia nodes only (via node selector)
 - Discovers Neuron cores and devices
 - Registers `aws.amazon.com/neuroncore` and `aws.amazon.com/neurondevice`
-- Pods request it via `resources.limits.aws.amazon.com/neuroncore: 2`
+- Pods request it via `resources.limits.aws.amazon.com/neuroncore: 1`
 
 ---
 
@@ -87,7 +87,7 @@ These components are provisioned once and provide the foundation for everything 
 | Deployment | Hardware | Container Image | Resource Request | Endpoint |
 |-----------|----------|----------------|-----------------|----------|
 | `vllm-gpu` | g5.xlarge (1x A10G, 24GB) | `vllm/vllm-openai:latest` | `nvidia.com/gpu: 1` | `:8000/v1/chat/completions` |
-| `vllm-neuron` | inf2.xlarge (2 Neuron cores) | `vllm/vllm-neuron:latest` | `aws.amazon.com/neuroncore: 2` | `:8000/v1/chat/completions` |
+| `vllm-neuron` | inf2.xlarge (1 Neuron core) | Custom ECR image (see `Dockerfile.neuron`) | `aws.amazon.com/neuroncore: 1` | `:8000/v1/chat/completions` |
 
 **Key point:** Both deployments expose the SAME API. Consumers cannot tell the difference.
 

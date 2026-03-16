@@ -22,7 +22,7 @@ Three compute tiers managed by Karpenter:
 |------|---------------|-----|
 | ARM-based cost-optimized nodes (Graviton) | Strands agent, MCP servers, LiteLLM gateway, LangFuse, Prometheus/Grafana, EventBridge integration | Best price-performance for CPU workloads. 20-40% cheaper than x86 equivalents. |
 | GPU nodes (g5/g6) | vLLM with CUDA (Llama 3.1 8B-Instruct) | Required for CUDA-based model serving. Industry standard with broadest model compatibility. |
-| ML accelerator nodes (inf2) | vLLM with Neuron SDK (Llama 3.1 8B-Instruct, compiled) | AWS custom silicon. 40-70% cheaper than GPU for inference. Requires model compilation with `optimum-neuron`. |
+| ML accelerator nodes (inf2) | vLLM with Neuron SDK (TinyLlama 1.1B on inf2.xlarge) | AWS custom silicon. 40-70% cheaper than GPU for inference. Neuron compiler runs at pod startup; larger models (8B+) require inf2.8xlarge or pre-compiled NEFFs. |
 
 ### Why Not Just GPUs for Everything?
 
@@ -177,7 +177,7 @@ Llama 3.1 8B-Instruct as the reasoning model on both backends.
 ### Why This Model
 
 - **Tool calling support** — Llama 3.1 Instruct has native function-calling capability, which Strands requires for the agent loop to work.
-- **8B parameter size** — Fits on a single g5.xlarge (24GB A10G) without quantization. Also compiles for inf2.xlarge (2 Neuron cores). Keeps demo infrastructure minimal.
+- **8B parameter size** — Fits on a single GPU node (24GB VRAM) without quantization. On Inferentia, 8B requires inf2.8xlarge (128GB); inf2.xlarge (16GB) only fits small models (≤2B) due to Neuron compilation overhead. Keeps demo infrastructure minimal.
 - **Same model, both backends** — Proves the talk's thesis: same model, different hardware, identical results. Using different models per backend would muddy the message.
 - **Open weights** — No API keys or licensing complexity for the demo.
 

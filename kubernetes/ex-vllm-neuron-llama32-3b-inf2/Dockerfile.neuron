@@ -22,5 +22,7 @@ RUN python3 -m pip install ray
 # Keep Triton aligned with vLLM 0.6 Neuron path. Newer Triton versions
 # can remove symbols used by vLLM (for example default_cache_dir).
 RUN python3 -m pip install --no-cache-dir "triton==3.0.0"
+# outlines (bundled with vLLM) requires pyairports but doesn't declare it.
+RUN python3 -m pip install --no-cache-dir pyairports
 
 ENTRYPOINT ["python3", "-m", "vllm.entrypoints.openai.api_server"]

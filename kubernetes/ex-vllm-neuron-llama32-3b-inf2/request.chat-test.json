@@ -1,5 +1,5 @@
 {
-  "model": "llama32-3b-neuron",
+  "model": "tinyllama-1b-neuron",
   "temperature": 0.3,
   "max_tokens": 120,
   "messages": [

@@ -23,7 +23,7 @@ This document specifies which model we use, why, how it's served on each hardwar
 
 **Tool calling is non-negotiable.** Strands Agents SDK uses the model's native function-calling capability to decide which tools to invoke. Models without tool-calling support cannot drive the agent loop. Llama 3.1 Instruct has robust tool-calling built in.
 
-**8B fits on minimal hardware.** The model runs in FP16 on a single A10G (24GB VRAM) with room for KV cache. On Inferentia, it fits on 2 Neuron cores (inf2.xlarge). This keeps demo infrastructure costs low — no multi-GPU setups needed.
+**8B fits on minimal hardware.** The model runs in FP16 on a single A10G (24GB VRAM) with room for KV cache. On Inferentia, 8B models require inf2.8xlarge (128GB) due to Neuron compilation memory overhead; inf2.xlarge (16GB) only supports small models like TinyLlama 1.1B or Llama 3.2 1B. This keeps demo infrastructure costs low — no multi-GPU setups needed.
 
 **Same model on both backends proves the thesis.** The talk's core message is hardware abstraction. Using identical models on GPU and Inferentia eliminates the variable of "maybe it's a different model" — the only difference is the chip.
 
@@ -101,82 +101,77 @@ spec:
 
 ## Inferentia Backend: vLLM with Neuron SDK
 
-### Model Compilation
+### How It Works
 
-Inferentia requires models to be compiled ahead of time with the Neuron SDK. This is a one-time step:
+Unlike GPU, Inferentia does NOT use pre-compiled models with `optimum-neuron`. Instead, vLLM compiles the model at pod startup using the Neuron compiler (`neuronx-cc`). This takes 5-15 minutes on first boot but the compiled NEFFs are cached in `/var/tmp/neuron-compile-cache` for subsequent restarts.
 
-```bash
-# Using optimum-neuron to compile the model
-optimum-cli export neuron \
-  --model meta-llama/Llama-3.1-8B-Instruct \
-  --task text-generation \
-  --batch_size 1 \
-  --sequence_length 4096 \
-  --auto_cast_type bf16 \
-  --num_cores 2 \
-  --output ./llama-3.1-8b-neuron/
-```
+The Docker image is the **inference runtime only** — it contains vLLM, Neuron SDK, Ray, and dependencies but NO model weights. The model is downloaded from Hugging Face at startup via the `--model` arg.
 
-The compiled model is stored in S3 and mounted into the vLLM-Neuron Pod.
+### Custom Image (Required)
+
+vLLM's public Docker image does not include the Neuron SDK. You must build and push a custom image to ECR. See `kubernetes/ex-vllm-neuron-llama32-3b-inf2/README.md` for full build instructions.
+
+Key components in the image:
+- Base: `public.ecr.aws/neuron/pytorch-inference-neuronx:2.1.2-neuronx-py310-sdk2.20.0-ubuntu20.04`
+- vLLM 0.6.0 compiled with `VLLM_TARGET_DEVICE=neuron`
+- Pinned dependencies: `transformers==4.44.2`, `tokenizers==0.19.1`, `triton==3.0.0`
+- `pyairports` (required by `outlines`, not declared as dependency)
 
 ### Configuration
 
 ```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: vllm-neuron
-spec:
-  replicas: 1
-  template:
-    spec:
-      containers:
-        - name: vllm
-          image: vllm/vllm-neuron:latest
-          args:
-            - --model=/models/llama-3.1-8b-neuron
-            - --device=neuron
-            - --max-model-len=4096
-            - --enable-auto-tool-choice
-            - --tool-call-parser=llama3_json
-          ports:
-            - containerPort: 8000
-          resources:
-            limits:
-              aws.amazon.com/neuroncore: 2
-            requests:
-              cpu: "4"
-              memory: "16Gi"
-          volumeMounts:
-            - name: model-store
-              mountPath: /models
-      tolerations:
-        - key: aws.amazon.com/neuron
-          operator: Exists
-          effect: NoSchedule
-      volumes:
-        - name: model-store
-          persistentVolumeClaim:
-            claimName: neuron-model-pvc
+args:
+  - --model=TinyLlama/TinyLlama-1.1B-Chat-v1.0
+  - --served-model-name=tinyllama-1b-neuron
+  - --device=neuron
+  - --tensor-parallel-size=1
+  - --max-model-len=512
+  - --max-num-seqs=1
+  - --block-size=2048
+  - --swap-space=0
+  - --guided-decoding-backend=lm-format-enforcer
+resources:
+  requests:
+    cpu: "1500m"
+    memory: "10Gi"
+    aws.amazon.com/neuroncore: "1"
+  limits:
+    cpu: "3"
+    aws.amazon.com/neuroncore: "1"
+    # No memory limit — Neuron compilation requires peak RAM that exceeds
+    # any safe cgroup limit on inf2.xlarge. The pod is the sole tenant on
+    # the node, so this is safe.
 ```
 
-### Requirements
+### inf2 Instance Sizing
 
-| Resource | Value |
-|----------|-------|
-| Instance | inf2.xlarge |
-| Neuron Cores | 2 |
-| CPU | 4 vCPUs |
-| RAM | 16 GB |
-| Storage | 20 GB (compiled model) |
-| Estimated cost | ~$0.76/hr on-demand |
-| Compilation time | ~15-30 min (one-time) |
+| Instance | RAM | Neuron Cores | vCPUs | Max Model (bf16) | Notes |
+|----------|-----|-------------|-------|------------------|-------|
+| inf2.xlarge | 16 GB | 2 | 4 | ~1-2B (TinyLlama, Llama-3.2-1B) | Neuron compilation overhead limits usable RAM |
+| inf2.8xlarge | 128 GB | 2 | 32 | ~8B (Llama 3.1 8B) | Requires Service Quota increase (32 vCPUs) |
+| inf2.24xlarge | 384 GB | 12 | 96 | ~30B+ | Multi-core tensor parallelism |
+
+**Important:** inf2.xlarge has 16GB total but only ~14.6GB allocatable by Kubernetes. Neuron compilation temporarily uses 10-12GB on top of model weights, which is why memory limits must NOT be set — the pod needs access to all node memory during compilation.
+
+### Supported Architectures (vLLM 0.6.0 on Neuron)
+
+Only two model architectures are supported:
+- `LlamaForCausalLM` (Llama, TinyLlama, Code Llama)
+- `MistralForCausalLM` (Mistral, Mixtral)
+
+For Qwen or other architectures, upgrade to vLLM 0.13+ with the [vllm-neuron plugin](https://github.com/vllm-project/vllm-neuron) (requires Neuron SDK 2.28+).
+
+### Known Issues
+
+- **`outlines` missing `pyairports`**: vLLM bundles `outlines` for guided decoding, but `outlines` imports `pyairports` without declaring it as a dependency. Fix: install `pyairports` in the Docker image AND use `--guided-decoding-backend=lm-format-enforcer` to bypass `outlines` entirely.
+- **OOMKilled on inf2.xlarge**: Even TinyLlama (2GB) gets OOMKilled if a memory limit is set, because Neuron compilation temporarily spikes to 12-14GB. Fix: do not set `resources.limits.memory`.
+- **`tensor-parallel-size=2` adds Ray overhead**: Using tp=2 starts Ray distributed computing, adding ~2-3GB RAM overhead. On inf2.xlarge, always use tp=1.
 
 ### Inferentia Limitations
 
-- **Compilation is mandatory** — No JIT. If you change `max-model-len` or `batch_size`, you recompile.
-- **Not all models compile** — Some architectures have unsupported operations. Llama 3.1 compiles cleanly.
-- **Batch size is fixed at compile time** — Less flexible than GPU. For the demo (single user), batch_size=1 is fine.
+- **Compilation happens at startup** — First boot takes 5-15 minutes while `neuronx-cc` compiles computation graphs. Subsequent restarts use cached NEFFs.
+- **Not all models work** — Only `LlamaForCausalLM` and `MistralForCausalLM` on vLLM 0.6.0.
+- **inf2.xlarge is very constrained** — Only small models (≤2B) fit due to compilation memory overhead. Budget for inf2.8xlarge for production use.
 - **Tool calling via vLLM** — The `--enable-auto-tool-choice` flag works the same way regardless of backend. The Neuron SDK handles the compute; vLLM handles the API layer.
 
 ---
@@ -222,8 +217,9 @@ router_settings:
 
 | Backend | Instance | Hourly Cost | Notes |
 |---------|----------|------------|-------|
-| GPU (g5.xlarge) | 1x A10G | ~$1.01/hr | Universal compatibility, fastest time-to-first-token |
-| Inferentia (inf2.xlarge) | 2 Neuron cores | ~$0.76/hr | 25% cheaper, requires compilation step |
+| GPU (g6e.xlarge) | 1x L40S | ~$1.86/hr | Universal compatibility, fastest time-to-first-token |
+| Inferentia (inf2.xlarge) | 1 Neuron core | ~$0.76/hr | Small models only (≤2B), compilation at startup |
+| Inferentia (inf2.8xlarge) | 2 Neuron cores | ~$1.97/hr | Supports 8B models, requires Service Quota increase |
 | ARM (m7g.medium) | CPU only | ~$0.04/hr | For agent, MCP servers, gateway — no inference |
 
 Running 24/7 for a month:

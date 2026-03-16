@@ -1,9 +1,9 @@
 # ex-vllm-neuron-llama32-3b-inf2
 
-This sample deploys Llama 3.2 3B on Inferentia (`inf2`) using vLLM.
+This sample deploys a Llama-compatible model on Inferentia (`inf2`) using vLLM with Neuron SDK.
 
-- Model: `meta-llama/Llama-3.2-3B-Instruct`
-- Served model name: `llama32-3b-neuron`
+- Default model: `TinyLlama/TinyLlama-1.1B-Chat-v1.0` (fits on inf2.xlarge)
+- Served model name: `tinyllama-1b-neuron`
 - Lane: `neuron-inference`
 
 Important:
@@ -11,6 +11,8 @@ Important:
 - You must build and push a custom Neuron image to ECR first.
 - Deployment default is `replicas: 0` to avoid `ImagePullBackOff` before image exists.
 - vLLM 0.6.0 on Neuron only supports `LlamaForCausalLM` and `MistralForCausalLM` architectures.
+- inf2.xlarge (16GB) only supports models ≤2B due to Neuron compilation memory overhead. For larger models use inf2.8xlarge.
+- No memory limit is set on the container — Neuron compilation needs peak RAM beyond any safe cgroup limit. The pod is the sole tenant on the inf2 node.
 
 Reference:
 - AWS blog: https://aws.amazon.com/blogs/machine-learning/deploy-meta-llama-3-1-8b-on-aws-inferentia-using-amazon-eks-and-vllm/
@@ -111,11 +113,11 @@ The Docker image is the **inference runtime** — all the software needed to run
 ### Pod startup sequence
 
 ```
-1. K8s creates pod on an inf2 node
-2. Pulls Docker image from ECR (runtime only)            ~15 GB, cached after first pull
-3. vLLM reads --model=meta-llama/Llama-3.2-3B-Instruct
-4. Downloads model from HuggingFace → /models (emptyDir)  ~6 GB, re-downloaded every restart
-5. Compiles model for Neuron (optimized computation graphs) ~10-25 min on first run
+1. K8s creates pod on an inf2 node (Karpenter provisions if needed)
+2. Pulls Docker image from ECR (runtime only)               ~15 GB, cached after first pull
+3. vLLM reads --model=TinyLlama/TinyLlama-1.1B-Chat-v1.0
+4. Downloads model from HuggingFace → /models (emptyDir)    ~2 GB, re-downloaded every restart
+5. Compiles model for Neuron (neuronx-cc, 2 graphs)         ~5-15 min, cached in /var/tmp/
 6. Starts HTTP server on :8000 with OpenAI-compatible API
 ```
 
@@ -135,14 +137,13 @@ The Docker image is the **inference runtime** — all the software needed to run
 | Supported models | All architectures vLLM supports | Only `LlamaForCausalLM` and `MistralForCausalLM` (vLLM 0.6.0) |
 | Upgrade path | Change image tag | Rebuild with newer Neuron SDK + [vllm-neuron plugin](https://github.com/vllm-project/vllm-neuron) |
 
-## 2) Hugging Face gated access (required for Llama 3.2)
+## 2) Hugging Face gated access (only for gated models)
 
-`meta-llama/Llama-3.2-3B-Instruct` is a gated model.
+The default model (`TinyLlama/TinyLlama-1.1B-Chat-v1.0`) is NOT gated — no HF token needed.
 
-Before scaling this deployment to 1 replica:
+If you switch to a gated model like `meta-llama/Llama-3.2-3B-Instruct` (requires inf2.8xlarge):
 
-1. Request/accept access on:
-   - https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct
+1. Request/accept access on the model page (e.g. https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct)
 2. Create a Hugging Face token with `Read` scope.
 3. Verify your token can access model files (must return `200`).
 
@@ -288,8 +289,9 @@ kubectl get pod -n ai-example -l app=vllm-neuron-llama32-3b \
   -o jsonpath='{.items[0].status.containerStatuses[0].lastState.terminated.reason}{" "}{.items[0].status.containerStatuses[0].lastState.terminated.exitCode}{"\n"}'
 ```
 
-Llama-3.2-3B (~6GB bf16) should fit comfortably on `inf2.xlarge` (16GB RAM).
-If it still OOMs, move NodePool instance type to a larger Inferentia size (for example `inf2.8xlarge`).
+Neuron compilation temporarily uses 10-12GB of RAM on top of model weights.
+On inf2.xlarge (16GB), do NOT set `resources.limits.memory` — let the pod use all node RAM.
+Only models ≤2B (TinyLlama, Llama-3.2-1B) fit on inf2.xlarge. For 3B+ models, use inf2.8xlarge (requires Service Quota increase to 32 vCPUs for "Running On-Demand Inf instances").
 
 Then roll deployment:
 
