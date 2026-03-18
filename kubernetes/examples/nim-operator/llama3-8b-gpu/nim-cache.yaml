@@ -1,0 +1,45 @@
+# ── NIMCache ──────────────────────────────────────────────────────────────────
+# NIMCache pre-downloads the model weights from NGC onto a PersistentVolume
+# so that NIMService pods start in seconds instead of re-downloading GBs each time.
+#
+# The NIM Operator watches this resource, spins up a temporary init job that
+# pulls the model from nvcr.io, and marks the cache as Ready when complete.
+# All subsequent NIMService pods mount this PVC read-only.
+#
+# Model: meta/llama3-8b-instruct
+#   - 8B params, fits on a single g6.xlarge (24 GB VRAM)
+#   - OpenAI-compatible chat endpoint out of the box
+#   - Optimized with TensorRT-LLM inside the NIM container
+#
+# Prerequisites:
+#   - NIM Operator installed (lv-4-inference-services)
+#   - Secret ngc-api-secret exists in namespace ai-example
+#     kubectl create secret generic ngc-api-secret \
+#       --from-literal=NGC_API_KEY=nvapi-xxxx \
+#       -n ai-example
+apiVersion: apps.nvidia.com/v1alpha1
+kind: NIMCache
+metadata:
+  name: llama3-8b-instruct-cache
+spec:
+  source:
+    ngc:
+      # NGC model path — matches the NIM container published by NVIDIA
+      modelPuller: nvcr.io/nim/meta/llama3-8b-instruct:1.0.0
+      # Secret created by lv-4 Terraform (or manually, see README)
+      authSecret: ngc-api-secret
+      model:
+        engine: tensorrt_llm
+        tensorParallelism: "1"
+        # Pull only the profile optimized for fp8 on A10G/L40S (g6/g5 nodes).
+        # Reduces download size from ~30 GB to ~9 GB.
+        profiles:
+          - bf16-tp1-throughput
+  storage:
+    pvc:
+      create: true
+      storageClassName: gp3
+      size: 30Gi
+      # ReadWriteOnce is fine — cache is written once, then read by one pod at a time
+      accessModes:
+        - ReadWriteOnce

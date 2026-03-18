@@ -1,0 +1,276 @@
+# ── RayService: TinyLlama 1B on Inferentia2 via Ray Serve + vLLM-Neuron ───────
+#
+# Architecture:
+#   Head node  →  ARM/Graviton (CPU node, same as GPU example)
+#   Worker(s)  →  Inferentia2 (inf2.xlarge, 2 NeuronCores), provisioned by Karpenter
+#
+# Key differences vs the GPU RayService example:
+#   - Worker image: custom ECR image (vllm-neuron + Ray) — NOT the public ray-ml:gpu
+#   - Resource:     aws.amazon.com/neuroncore instead of nvidia.com/gpu
+#   - vLLM args:    --device=neuron, --tokenizer-mode=slow, --max-model-len=512, etc.
+#   - Compilation:  Neuron XLA compilation at first startup takes 20-45 min.
+#                   serviceUnhealthySecondThreshold is set to 2700 (45 min).
+#   - No scale-to-zero (minReplicas: 1): recompilation cost makes it impractical.
+#
+# Prerequisites:
+#   1. Build Dockerfile.ray-neuron and push to ECR (see Dockerfile for commands)
+#   2. Update WORKER_IMAGE below with your ECR URI
+#   3. KubeRay operator installed (lv-4-inference-services Terraform)
+#   4. Karpenter NodePool neuron-inference from lv-3 Terraform
+#
+# Replace ALL occurrences of <AWS_ACCOUNT_ID> and <AWS_REGION> before applying.
+---
+# ── Neuron serve script ───────────────────────────────────────────────────────
+# Mounted at /serve/serve_vllm_neuron.py in every Ray pod.
+# PYTHONPATH=/serve makes `import_path: serve_vllm_neuron:deployment` resolve.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ray-serve-vllm-neuron-script
+data:
+  serve_vllm_neuron.py: |
+    """
+    Ray Serve deployment wrapping vLLM with AWS Neuron (Inferentia2) backend.
+
+    Neuron-specific constraints vs the GPU version:
+      - device="neuron"           → vLLM routes ops through Neuron SDK (torch-neuronx)
+      - tokenizer_mode="slow"     → fast (Rust) tokenizer has incompatibilities with Neuron
+      - tensor_parallel_size=1    → inf2.xlarge has 2 NeuronCores; TP=1 uses one core
+      - max_model_len=512         → Neuron XLA graph is compiled for a fixed sequence length;
+                                    longer sequences require recompilation
+      - max_num_seqs=1            → single concurrent sequence per replica on inf2.xlarge
+      - block_size=2048           → Neuron PagedAttention uses large block sizes
+      - swap_space=0              → no CPU swap on Inferentia
+      - guided_decoding_backend   → "lm-format-enforcer" is the only backend tested on Neuron
+
+    Compilation note:
+      The first time a worker starts, torch-neuronx compiles the model graph to a
+      Neuron Executable File (NEFF).  This takes 20-45 min for TinyLlama on inf2.xlarge.
+      Subsequent restarts load from the Neuron cache (~2-3 min).
+      The /tmp/neuron_cache volume persists cache across pod restarts on the same node.
+    """
+    import os
+    from ray import serve
+    from vllm.engine.arg_utils import AsyncEngineArgs
+    from vllm.engine.async_llm_engine import AsyncLLMEngine
+    from vllm.entrypoints.openai.api_server import app
+
+    MODEL_ID = os.environ.get("MODEL_ID", "TinyLlama/TinyLlama-1.1B-Chat-v1.0")
+
+    @serve.deployment(
+        name="VLLMNeuronDeployment",
+        # Each replica uses one NeuronCore.  inf2.xlarge has 2 NeuronCores,
+        # so the node can host at most 2 replicas (set max_replicas: 2 below).
+        # Neuron compilation is expensive — do not set min_replicas: 0.
+        num_replicas=1,
+        ray_actor_options={
+            "resources": {"aws.amazon.com/neuroncore": 1},
+            "num_cpus": 2,
+        },
+        max_ongoing_requests=4,   # Neuron single-stream: keep queue short
+    )
+    @serve.ingress(app)
+    class VLLMNeuronDeployment:
+        def __init__(self):
+            engine_args = AsyncEngineArgs(
+                model=MODEL_ID,
+                served_model_name="tinyllama-1b-neuron",
+                device="neuron",
+                tokenizer_mode="slow",
+                tensor_parallel_size=1,
+                max_model_len=512,
+                max_num_seqs=1,
+                block_size=2048,
+                swap_space=0,
+                guided_decoding_backend="lm-format-enforcer",
+            )
+            self.engine = AsyncLLMEngine.from_engine_args(engine_args)
+
+            app.state.engine      = self.engine
+            app.state.engine_args = engine_args
+
+    deployment = VLLMNeuronDeployment.bind()
+
+---
+# ── RayService ────────────────────────────────────────────────────────────────
+apiVersion: ray.io/v1
+kind: RayService
+metadata:
+  name: tinyllama-neuron-ray
+  labels:
+    app.kubernetes.io/name: vllm
+    app.kubernetes.io/instance: tinyllama-neuron-ray
+    app.kubernetes.io/component: inference
+    app.kubernetes.io/part-of: polymarket-signal
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+spec:
+  # ── Health thresholds ───────────────────────────────────────────────────────
+  # Neuron XLA compilation can take up to 45 min on first pod start.
+  # Set to 2700s (45 min) so the operator does not restart the cluster
+  # mid-compilation thinking it is unhealthy.
+  serviceUnhealthySecondThreshold: 2700
+  deploymentUnhealthySecondThreshold: 2700
+
+  # ── Serve application ───────────────────────────────────────────────────────
+  serveConfigV2: |
+    applications:
+      - name: tinyllama-neuron
+        route_prefix: /
+        import_path: serve_vllm_neuron:deployment
+        deployments:
+          - name: VLLMNeuronDeployment
+            num_replicas: 1
+            ray_actor_options:
+              resources:
+                aws.amazon.com/neuroncore: 1
+              num_cpus: 2
+
+  # ── Ray cluster ─────────────────────────────────────────────────────────────
+  rayClusterConfig:
+    rayVersion: "2.32.0"
+
+    # ── Head node (ARM/Graviton) ───────────────────────────────────────────
+    # Same as the GPU example: GCS + Serve proxy on a cheap CPU node.
+    # No Neuron or GPU needed here.
+    headGroupSpec:
+      rayStartParams:
+        dashboard-host: "0.0.0.0"
+        metrics-export-port: "8080"
+
+      serviceType: ClusterIP
+
+      template:
+        metadata:
+          labels:
+            app: tinyllama-neuron-ray-head
+        spec:
+          nodeSelector:
+            kubernetes.io/arch: arm64
+            workload: graviton
+
+          containers:
+            - name: ray-head
+              image: rayproject/ray-ml:2.32.0-aarch64
+              imagePullPolicy: IfNotPresent
+
+              ports:
+                - name: gcs
+                  containerPort: 6379
+                - name: dashboard
+                  containerPort: 8265
+                - name: serve
+                  containerPort: 8000
+                - name: metrics
+                  containerPort: 8080
+
+              env:
+                - name: PYTHONPATH
+                  value: "/serve"
+
+              resources:
+                requests:
+                  cpu: "2"
+                  memory: "8Gi"
+                limits:
+                  cpu: "4"
+                  memory: "16Gi"
+
+              volumeMounts:
+                - name: serve-script
+                  mountPath: /serve
+                - name: tmp
+                  mountPath: /tmp
+
+          volumes:
+            - name: serve-script
+              configMap:
+                name: ray-serve-vllm-neuron-script
+            - name: tmp
+              emptyDir: {}
+
+    # ── Worker group (Inferentia2) ─────────────────────────────────────────
+    # inf2.xlarge: 4 vCPU, 16 GiB RAM, 2 NeuronCores (1 NeuronDevice).
+    # Each worker replica uses 1 NeuronCore → max 2 replicas per inf2.xlarge.
+    # minReplicas: 1 because Neuron compilation cost makes scale-to-zero impractical.
+    workerGroupSpecs:
+      - groupName: neuron-workers
+        replicas: 1
+        minReplicas: 1   # Keep at least one compiled replica alive
+        maxReplicas: 2   # inf2.xlarge has 2 NeuronCores
+
+        rayStartParams: {}
+
+        template:
+          metadata:
+            labels:
+              app: tinyllama-neuron-ray-worker
+          spec:
+            # ── Inferentia2 node (Karpenter NodePool: neuron-inference) ───
+            nodeSelector:
+              workload: neuron
+            tolerations:
+              - key: aws.amazon.com/neuron
+                operator: Equal
+                value: "true"
+                effect: NoSchedule
+              - key: aws.amazon.com/neuroncore
+                operator: Exists
+                effect: NoSchedule
+
+            containers:
+              - name: ray-worker
+                # Custom image: vllm-neuron base + Ray 2.32.0 (pinned).
+                # Build with Dockerfile.ray-neuron and push to ECR first.
+                image: <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/vllm-neuron-ray:2.32.0
+                imagePullPolicy: IfNotPresent
+
+                env:
+                  - name: PYTHONPATH
+                    value: "/serve"
+                  - name: MODEL_ID
+                    value: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+                  # Neuron cache: persist compiled graphs across restarts.
+                  # Without this, every pod restart triggers a 20-45 min recompile.
+                  - name: NEURON_COMPILE_CACHE_URL
+                    value: "/tmp/neuron_cache"
+                  # Disable Neuron runtime telemetry if network egress is restricted
+                  - name: NEURON_RT_LOG_LEVEL
+                    value: "ERROR"
+
+                resources:
+                  requests:
+                    cpu: "1500m"
+                    memory: "10Gi"
+                    aws.amazon.com/neuroncore: "1"
+                  limits:
+                    cpu: "3"
+                    # No memory limit intentionally: Neuron XLA compilation requires
+                    # a large peak allocation that is hard to bound safely.
+                    # See manual example 04 README for details.
+                    aws.amazon.com/neuroncore: "1"
+
+                volumeMounts:
+                  - name: serve-script
+                    mountPath: /serve
+                  - name: neuron-cache
+                    mountPath: /tmp/neuron_cache
+                  - name: model-cache
+                    mountPath: /root/.cache/huggingface
+                  - name: tmp
+                    mountPath: /tmp
+
+            volumes:
+              - name: serve-script
+                configMap:
+                  name: ray-serve-vllm-neuron-script
+              # Neuron compile cache: persists across pod restarts on the same node.
+              # Replace with an EFS-backed PVC to share cache across nodes.
+              - name: neuron-cache
+                emptyDir: {}
+              - name: model-cache
+                emptyDir: {}
+              - name: tmp
+                emptyDir: {}

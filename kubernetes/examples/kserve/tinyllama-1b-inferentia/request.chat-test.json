@@ -1,0 +1,15 @@
+{
+  "model": "tinyllama-1b-inferentia",
+  "temperature": 0.3,
+  "max_tokens": 120,
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a concise assistant for infrastructure smoke tests. Answer in 3 short bullets."
+    },
+    {
+      "role": "user",
+      "content": "Explain what this test proves when running TinyLlama via KServe on Inferentia in EKS."
+    }
+  ]
+}

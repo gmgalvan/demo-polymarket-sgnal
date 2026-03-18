@@ -33,6 +33,12 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: vllm-gpu-oci
+  labels:
+    app: vllm-gpu-oci
+    app.kubernetes.io/name: vllm
+    app.kubernetes.io/instance: vllm-gpu-oci
+    app.kubernetes.io/component: inference
+    app.kubernetes.io/part-of: polymarket-signal
 spec:
   replicas: 2
   strategy:
@@ -44,6 +50,14 @@ spec:
     metadata:
       labels:
         app: vllm-gpu-oci
+        app.kubernetes.io/name: vllm
+        app.kubernetes.io/instance: vllm-gpu-oci
+        app.kubernetes.io/component: inference
+        app.kubernetes.io/part-of: polymarket-signal
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
     spec:
       nodeSelector:
         workload: gpu

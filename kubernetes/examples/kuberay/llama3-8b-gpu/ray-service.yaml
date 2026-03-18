@@ -1,0 +1,276 @@
+# ── RayService: Llama 3 8B on GPU via Ray Serve + vLLM ───────────────────────
+#
+# Architecture:
+#   Head node  →  ARM/Graviton (cheap CPU node, no GPU needed)
+#   Worker(s)  →  GPU node (g6.xlarge / L40S), provisioned by Karpenter on demand
+#
+# Ray Serve exposes an OpenAI-compatible API on port 8000.
+# LiteLLM gateway connects to the RayService ClusterIP just like it would
+# to any other vLLM instance — no code changes required.
+#
+# The serve script (serve_vllm.py) is injected via ConfigMap so you don't
+# need a custom Docker image for the demo.
+#
+# Apply order:
+#   1. ConfigMap  (serve script)
+#   2. RayService (references the ConfigMap volume)
+---
+# ── Serve script ─────────────────────────────────────────────────────────────
+# Mounted into every Ray pod at /serve/serve_vllm.py.
+# PYTHONPATH is set to /serve so `import_path: serve_vllm:deployment` resolves.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ray-serve-vllm-script
+data:
+  serve_vllm.py: |
+    """
+    Ray Serve deployment that wraps vLLM with an OpenAI-compatible HTTP API.
+
+    Ray Serve handles:
+      - HTTP routing and load balancing across replicas
+      - Autoscaling replicas (each replica owns one GPU)
+      - Health checks and rolling updates (zero-downtime via RayService)
+
+    vLLM handles:
+      - Continuous batching of incoming requests
+      - PagedAttention KV-cache management
+      - CUDA kernel optimizations
+    """
+    import os
+    from ray import serve
+    from vllm.engine.arg_utils import AsyncEngineArgs
+    from vllm.engine.async_llm_engine import AsyncLLMEngine
+    from vllm.entrypoints.openai.api_server import app
+    from vllm.entrypoints.openai.serving_chat import OpenAIServingChat
+    from vllm.entrypoints.openai.serving_completion import OpenAIServingCompletion
+
+    MODEL_ID   = os.environ.get("MODEL_ID",    "meta-llama/Llama-3.1-8B-Instruct")
+    MAX_LEN    = int(os.environ.get("MAX_MODEL_LEN",  "4096"))
+    GPU_MEM    = float(os.environ.get("GPU_MEM_UTIL", "0.85"))
+    HF_TOKEN   = os.environ.get("HF_TOKEN",   "")  # set via Secret if model is gated
+
+    @serve.deployment(
+        name="VLLMDeployment",
+        # Each replica owns exactly one GPU.  Ray Serve autoscales replicas
+        # based on queue depth — Karpenter provisions GPU nodes on demand.
+        num_replicas=1,
+        ray_actor_options={"num_gpus": 1, "num_cpus": 4},
+        max_ongoing_requests=256,
+        autoscaling_config={
+            "min_replicas": 1,
+            "max_replicas": 4,
+            "target_ongoing_requests": 32,
+            "upscale_delay_s": 30,
+            "downscale_delay_s": 120,
+        },
+    )
+    @serve.ingress(app)
+    class VLLMDeployment:
+        def __init__(self):
+            engine_args = AsyncEngineArgs(
+                model=model_id,
+                served_model_name=MODEL_ID.split("/")[-1].lower(),
+                dtype="half",
+                max_model_len=MAX_LEN,
+                gpu_memory_utilization=GPU_MEM,
+                # Trust remote code for models like Qwen that require it
+                trust_remote_code=False,
+            )
+            self.engine = AsyncLLMEngine.from_engine_args(engine_args)
+
+            # Register engine with the FastAPI app so the OpenAI endpoints work
+            app.state.engine       = self.engine
+            app.state.engine_args  = engine_args
+
+    # `deployment` is the name referenced by import_path in serveConfigV2
+    deployment = VLLMDeployment.bind()
+
+---
+# ── RayService ────────────────────────────────────────────────────────────────
+# RayService = RayCluster + Ray Serve application managed as a single CRD.
+# The KubeRay operator handles:
+#   - Cluster bootstrap (head + workers)
+#   - Rolling updates of the Serve application (canary before cutover)
+#   - Automatic recovery if the head node crashes
+apiVersion: ray.io/v1
+kind: RayService
+metadata:
+  name: llama3-8b-ray
+  labels:
+    app.kubernetes.io/name: vllm
+    app.kubernetes.io/instance: llama3-8b-ray
+    app.kubernetes.io/component: inference
+    app.kubernetes.io/part-of: polymarket-signal
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+spec:
+  # ── Health thresholds ───────────────────────────────────────────────────────
+  # How long to wait for the cluster/app to become healthy before giving up.
+  # Increase if model download takes longer than expected on first deploy.
+  serviceUnhealthySecondThreshold: 600
+  deploymentUnhealthySecondThreshold: 600
+
+  # ── Serve application ───────────────────────────────────────────────────────
+  # serveConfigV2 is the Ray Serve multi-application config (Ray ≥ 2.7).
+  # import_path resolves against PYTHONPATH=/serve (set below via env).
+  serveConfigV2: |
+    applications:
+      - name: llm
+        route_prefix: /
+        import_path: serve_vllm:deployment
+        deployments:
+          - name: VLLMDeployment
+            num_replicas: 1
+            ray_actor_options:
+              num_gpus: 1
+              num_cpus: 4
+
+  # ── Ray cluster ─────────────────────────────────────────────────────────────
+  rayClusterConfig:
+    # Ray version must match the image tags used below.
+    rayVersion: "2.32.0"
+
+    # ── Head node ──────────────────────────────────────────────────────────
+    # The head node runs: GCS (global control store), dashboard, and the
+    # Ray Serve controller/proxy.  It does NOT run inference — no GPU needed.
+    # We schedule it on ARM/Graviton nodes to keep costs low (~$0.04/hr).
+    headGroupSpec:
+      rayStartParams:
+        dashboard-host: "0.0.0.0"
+        # Expose metrics for Prometheus scraping
+        metrics-export-port: "8080"
+
+      serviceType: ClusterIP
+
+      template:
+        metadata:
+          labels:
+            app: llama3-8b-ray-head
+        spec:
+          # ── ARM/Graviton node ────────────────────────────────────────────
+          nodeSelector:
+            kubernetes.io/arch: arm64
+            workload: graviton
+
+          containers:
+            - name: ray-head
+              # ray-ml includes common ML dependencies (numpy, pandas, etc.)
+              # Use the aarch64 variant for ARM nodes.
+              image: rayproject/ray-ml:2.32.0-aarch64
+              imagePullPolicy: IfNotPresent
+
+              ports:
+                - name: gcs            # Ray GCS / cluster bus
+                  containerPort: 6379
+                - name: dashboard      # Ray Dashboard UI
+                  containerPort: 8265
+                - name: serve          # Ray Serve HTTP (OpenAI API)
+                  containerPort: 8000
+                - name: metrics        # Prometheus metrics
+                  containerPort: 8080
+
+              env:
+                # Make /serve importable by Python
+                - name: PYTHONPATH
+                  value: "/serve"
+                # HuggingFace token for gated models (set via Secret in production)
+                # - name: HF_TOKEN
+                #   valueFrom:
+                #     secretKeyRef:
+                #       name: hf-token
+                #       key: token
+
+              resources:
+                requests:
+                  cpu: "2"
+                  memory: "8Gi"
+                limits:
+                  cpu: "4"
+                  memory: "16Gi"
+
+              volumeMounts:
+                - name: serve-script
+                  mountPath: /serve
+                - name: tmp
+                  mountPath: /tmp
+
+          volumes:
+            - name: serve-script
+              configMap:
+                name: ray-serve-vllm-script
+            - name: tmp
+              emptyDir: {}
+
+    # ── Worker group ───────────────────────────────────────────────────────
+    # Each worker pod = one GPU replica.  Karpenter provisions GPU nodes
+    # (g6.xlarge) automatically when pods with nvidia.com/gpu are pending.
+    # minReplicas: 0 enables scale-to-zero when there are no active requests.
+    workerGroupSpecs:
+      - groupName: gpu-workers
+        replicas: 1
+        minReplicas: 0
+        maxReplicas: 4
+
+        rayStartParams: {}
+
+        template:
+          metadata:
+            labels:
+              app: llama3-8b-ray-worker
+          spec:
+            # ── GPU node (Karpenter NodePool: gpu-inference) ──────────────
+            nodeSelector:
+              workload: gpu
+            tolerations:
+              - key: nvidia.com/gpu
+                operator: Equal
+                value: "true"
+                effect: NoSchedule
+
+            containers:
+              - name: ray-worker
+                image: rayproject/ray-ml:2.32.0-gpu
+                imagePullPolicy: IfNotPresent
+
+                env:
+                  - name: PYTHONPATH
+                    value: "/serve"
+                  - name: MODEL_ID
+                    value: "meta-llama/Llama-3.1-8B-Instruct"
+                  - name: MAX_MODEL_LEN
+                    value: "4096"
+                  - name: GPU_MEM_UTIL
+                    value: "0.85"
+
+                resources:
+                  requests:
+                    cpu: "4"
+                    memory: "16Gi"
+                    nvidia.com/gpu: "1"
+                  limits:
+                    cpu: "8"
+                    memory: "24Gi"
+                    nvidia.com/gpu: "1"
+
+                volumeMounts:
+                  - name: serve-script
+                    mountPath: /serve
+                  - name: model-cache
+                    mountPath: /root/.cache/huggingface
+                  - name: tmp
+                    mountPath: /tmp
+
+            volumes:
+              - name: serve-script
+                configMap:
+                  name: ray-serve-vllm-script
+              # Model weights are cached across pod restarts (emptyDir is
+              # node-local ephemeral storage).  Replace with a PVC backed by
+              # EFS or EBS gp3 for persistent caching across node replacements.
+              - name: model-cache
+                emptyDir: {}
+              - name: tmp
+                emptyDir: {}

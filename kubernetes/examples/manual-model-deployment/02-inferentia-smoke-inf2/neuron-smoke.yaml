@@ -2,6 +2,12 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: neuron-smoke-inf2
+  labels:
+    app: neuron-smoke-inf2
+    app.kubernetes.io/name: neuron-smoke
+    app.kubernetes.io/instance: neuron-smoke-inf2
+    app.kubernetes.io/component: smoke-test
+    app.kubernetes.io/part-of: polymarket-signal
 spec:
   replicas: 1
   strategy:
@@ -13,6 +19,10 @@ spec:
     metadata:
       labels:
         app: neuron-smoke-inf2
+        app.kubernetes.io/name: neuron-smoke
+        app.kubernetes.io/instance: neuron-smoke-inf2
+        app.kubernetes.io/component: smoke-test
+        app.kubernetes.io/part-of: polymarket-signal
     spec:
       nodeSelector:
         workload: neuron
@@ -61,6 +71,12 @@ apiVersion: v1
 kind: Service
 metadata:
   name: neuron-smoke-inf2
+  labels:
+    app: neuron-smoke-inf2
+    app.kubernetes.io/name: neuron-smoke
+    app.kubernetes.io/instance: neuron-smoke-inf2
+    app.kubernetes.io/component: smoke-test
+    app.kubernetes.io/part-of: polymarket-signal
 spec:
   selector:
     app: neuron-smoke-inf2

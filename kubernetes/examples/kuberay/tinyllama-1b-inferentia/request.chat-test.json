@@ -1,0 +1,11 @@
+{
+  "model": "tinyllama-1b-neuron",
+  "messages": [
+    {
+      "role": "user",
+      "content": "BTC RSI is 34, MACD shows a bullish crossover. Should I go long on the 15-minute window?"
+    }
+  ],
+  "max_tokens": 128,
+  "temperature": 0.3
+}

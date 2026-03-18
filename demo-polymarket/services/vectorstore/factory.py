@@ -30,10 +30,12 @@ def get_vector_store() -> VectorStore:
     if backend == "chroma":
         from services.vectorstore.chroma import ChromaVectorStore
         _instance = ChromaVectorStore()
+    elif backend == "opensearch":
+        from services.vectorstore.opensearch import OpenSearchVectorStore
+        _instance = OpenSearchVectorStore()
     else:
         raise ValueError(
-            f"Unknown VECTOR_BACKEND='{backend}'. Supported: chroma (local). "
-            "Set VECTOR_BACKEND=opensearch for EKS deployment."
+            f"Unknown VECTOR_BACKEND='{backend}'. Supported: chroma (local), opensearch (EKS)."
         )
 
     return _instance

@@ -1,0 +1,132 @@
+# ── InferenceService (KServe) ─────────────────────────────────────────────────
+# KServe's InferenceService CRD wraps an arbitrary container as a managed
+# inference endpoint. Unlike vLLM deployed as a raw Deployment, KServe adds:
+#   - Declarative rollout (canary traffic splitting via spec.predictor.canaryTrafficPercent)
+#   - Built-in readiness gating before traffic is shifted
+#   - HPA integration (scale on custom metrics like requests-per-second)
+#   - Model URI abstraction (storageUri → model downloaded from S3/GCS/HF)
+#
+# In RawDeployment mode (set in lv-4 Terraform), KServe creates a standard
+# Deployment + Service without requiring Knative. This is the recommended
+# mode when Knative is not installed.
+#
+# Model: TinyLlama/TinyLlama-1.1B-Chat-v1.0  (same model as manual example 04)
+# Hardware: AWS Inferentia2 (inf2.xlarge) via the neuron-inference Karpenter NodePool
+#
+# IMPORTANT — custom image required:
+#   The predictor uses the same custom vLLM-Neuron ECR image as example 04.
+#   Build and push it first:
+#     cd kubernetes/examples/manual-model-deployment/04-vllm-neuron-tinyllama-1b-inf2
+#     AWS_REGION=us-east-1 ECR_REPO=vllm-neuron IMAGE_TAG=latest VLLM_REF=v0.6.0 \
+#       ./build-and-push-ecr-ec2.sh
+#
+# Replace <AWS_ACCOUNT_ID> and <AWS_REGION> before applying.
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: tinyllama-1b-inferentia
+  labels:
+    app.kubernetes.io/name: vllm
+    app.kubernetes.io/instance: tinyllama-1b-inferentia
+    app.kubernetes.io/component: inference
+    app.kubernetes.io/part-of: polymarket-signal
+  annotations:
+    # RawDeployment mode: KServe creates a Deployment, not a Knative Service.
+    # Remove this annotation if Knative is installed and you want scale-to-zero.
+    serving.kserve.io/deploymentMode: RawDeployment
+    # Prometheus scraping for KServe InferenceServices
+    prometheus.kserve.io/port: "8080"
+    prometheus.kserve.io/path: "/metrics"
+    serving.kserve.io/enable-prometheus-scraping: "true"
+spec:
+  predictor:
+    # ── Custom container: vLLM with Neuron SDK ──────────────────────────────────
+    # KServe's "model" shortcut (sklearn, xgboost, pytorch…) does not cover
+    # vLLM-Neuron. We use a raw containers spec instead so we can pass the
+    # exact vLLM args needed for Inferentia.
+    containers:
+      - name: kserve-container
+        # Replace with your ECR URI after pushing the image
+        image: <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/vllm-neuron:latest
+        imagePullPolicy: IfNotPresent
+        args:
+          - --model=TinyLlama/TinyLlama-1.1B-Chat-v1.0
+          - --served-model-name=tinyllama-1b-inferentia
+          - --tokenizer-mode=slow
+          - --host=0.0.0.0
+          - --port=8080         # KServe expects the container to listen on 8080
+          - --device=neuron
+          - --tensor-parallel-size=1
+          - --max-model-len=512
+          - --max-num-seqs=1
+          - --block-size=2048
+          - --swap-space=0
+          - --download-dir=/models
+          - --guided-decoding-backend=lm-format-enforcer
+        env:
+          - name: HF_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: huggingface-token
+                key: token
+                optional: true
+          - name: HUGGING_FACE_HUB_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: huggingface-token
+                key: token
+                optional: true
+        ports:
+          - containerPort: 8080
+            name: http1       # KServe requires the port to be named http1 or grpc
+            protocol: TCP
+        resources:
+          requests:
+            cpu: "1500m"
+            memory: "10Gi"
+            aws.amazon.com/neuroncore: "1"
+          limits:
+            cpu: "3"
+            aws.amazon.com/neuroncore: "1"
+          # No memory limit — Neuron compilation needs peak RAM beyond any
+          # safe cgroup limit. See README for details.
+        startupProbe:
+          httpGet:
+            path: /health
+            port: http1
+          periodSeconds: 15
+          failureThreshold: 180   # allow up to 45 min for Neuron compilation
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http1
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http1
+          initialDelaySeconds: 20
+          periodSeconds: 20
+          timeoutSeconds: 5
+        volumeMounts:
+          - name: model-cache
+            mountPath: /models
+
+    # ── Scheduling: Inferentia2 node (Karpenter NodePool neuron-inference) ──────
+    nodeSelector:
+      workload: neuron
+    tolerations:
+      - key: aws.amazon.com/neuron
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+      - key: aws.amazon.com/neuroncore
+        operator: Exists
+        effect: NoSchedule
+
+    volumes:
+      - name: model-cache
+        emptyDir: {}

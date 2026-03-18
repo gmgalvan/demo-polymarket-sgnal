@@ -1,0 +1,43 @@
+# ── Ray + vLLM-Neuron image ───────────────────────────────────────────────────
+# Extends the existing vllm-neuron ECR image (built from 04-vllm-neuron-tinyllama-1b-inf2)
+# with a pinned Ray version that matches rayVersion in ray-service.yaml.
+#
+# The base image already has:
+#   - AWS Neuron SDK (torch-neuronx, neuronx-cc)
+#   - vLLM with VLLM_TARGET_DEVICE=neuron
+#   - transformers 4.44.2 / tokenizers 0.19.1
+#   - ray (unpinned — we re-pin here)
+#
+# Why a separate image:
+#   KubeRay requires the Ray version inside worker containers to match the
+#   `rayVersion` field in the RayService spec.  Version mismatches cause the
+#   worker to fail the Ray cluster health check with:
+#     "ray version mismatch: expected X.Y.Z, got A.B.C"
+#
+# Build and push:
+#   export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+#   export AWS_REGION=us-east-1
+#   export VLLM_NEURON_URI=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/vllm-neuron:latest
+#
+#   aws ecr get-login-password --region ${AWS_REGION} | \
+#     docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+#
+#   docker build \
+#     --build-arg VLLM_NEURON_URI=${VLLM_NEURON_URI} \
+#     -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/vllm-neuron-ray:2.32.0 \
+#     -f kubernetes/examples/kuberay/tinyllama-1b-inferentia/Dockerfile.ray-neuron \
+#     .
+#
+#   docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/vllm-neuron-ray:2.32.0
+
+ARG VLLM_NEURON_URI
+FROM ${VLLM_NEURON_URI}
+
+# Re-pin Ray to match rayVersion: "2.32.0" in the RayService spec.
+# This replaces whatever version was installed by the base Dockerfile.
+RUN pip install --no-cache-dir "ray[serve]==2.32.0"
+
+# KubeRay overrides ENTRYPOINT with `ray start ...` via the container command.
+# Clear the vLLM entrypoint so it doesn't interfere.
+ENTRYPOINT []
+CMD []

@@ -1,0 +1,11 @@
+{
+  "model": "llama-3.1-8b-instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": "BTC RSI is 34, MACD shows a bullish crossover, Polymarket odds are 1.65 for UP. Should I go long on the 15-minute window? Give a brief analysis."
+    }
+  ],
+  "max_tokens": 256,
+  "temperature": 0.3
+}

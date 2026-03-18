@@ -1,0 +1,81 @@
+# ── NIMService ────────────────────────────────────────────────────────────────
+# NIMService deploys a NIM microservice pod that:
+#   1. Mounts the NIMCache PVC (model weights, already downloaded)
+#   2. Starts a TensorRT-LLM engine from the cached weights
+#   3. Exposes an OpenAI-compatible HTTP API on port 8000
+#
+# The NIM Operator translates this CRD into a Deployment + Service + HPA.
+# You never write those resources manually — the operator owns them.
+#
+# This NIMService lands on gpu-inference Karpenter NodePool nodes because:
+#   - nodeSelector: workload=gpu  → matches NodePool label
+#   - tolerations: nvidia.com/gpu → matches NodePool taint
+#   - resources: nvidia.com/gpu:1 → triggers Karpenter to provision a GPU node
+#
+# The agent (LiteLLM gateway) reaches this service at:
+#   http://llama3-8b-instruct:8000/v1/chat/completions
+# with model name "meta/llama3-8b-instruct"
+apiVersion: apps.nvidia.com/v1alpha1
+kind: NIMService
+metadata:
+  name: llama3-8b-instruct
+  labels:
+    app.kubernetes.io/name: nim
+    app.kubernetes.io/instance: llama3-8b-instruct
+    app.kubernetes.io/component: inference
+    app.kubernetes.io/part-of: polymarket-signal
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8000"
+    prometheus.io/path: "/metrics"
+spec:
+  # Reference the NIMCache created above — operator mounts the PVC automatically
+  nimCacheName: llama3-8b-instruct-cache
+  authSecret: ngc-api-secret
+
+  # ── Scheduling: GPU node (Karpenter NodePool gpu-inference) ─────────────────
+  nodeSelector:
+    workload: gpu
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+
+  # ── Resources ────────────────────────────────────────────────────────────────
+  resources:
+    requests:
+      cpu: "4"
+      memory: "16Gi"
+      nvidia.com/gpu: "1"
+    limits:
+      cpu: "8"
+      memory: "24Gi"
+      nvidia.com/gpu: "1"
+
+  # ── Serving config ───────────────────────────────────────────────────────────
+  replicas: 1
+
+  # ── Expose as ClusterIP Service ───────────────────────────────────────────────
+  expose:
+    service:
+      type: ClusterIP
+      port: 8000
+
+  # ── Readiness: NIM exposes /v1/health/ready (OpenAI health convention) ───────
+  livenessProbe:
+    httpGet:
+      path: /v1/health/live
+      port: 8000
+    initialDelaySeconds: 60
+    periodSeconds: 20
+    timeoutSeconds: 10
+    failureThreshold: 10
+  readinessProbe:
+    httpGet:
+      path: /v1/health/ready
+      port: 8000
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    timeoutSeconds: 10
+    failureThreshold: 30

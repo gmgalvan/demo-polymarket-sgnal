@@ -1,0 +1,205 @@
+{
+  "annotations": { "list": [] },
+  "description": "AWS Neuron SDK metrics for Inferentia2/Trainium — NeuronCore utilization, device memory, execution latency, errors",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "title": "NeuronCore Utilization (%)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 80 },
+              { "color": "red", "value": 95 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "neuroncore_utilization{instance=~\"$instance\"}",
+          "legendFormat": "Core {{neuroncore}} — {{instance}}"
+        }
+      ]
+    },
+    {
+      "title": "Device Memory Used (GiB)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decgbytes"
+        }
+      },
+      "targets": [
+        {
+          "expr": "neuron_runtime_memory_used_bytes{instance=~\"$instance\"} / 1073741824",
+          "legendFormat": "Used — {{instance}}"
+        },
+        {
+          "expr": "neuron_runtime_memory_total_bytes{instance=~\"$instance\"} / 1073741824",
+          "legendFormat": "Total — {{instance}}"
+        }
+      ]
+    },
+    {
+      "title": "Device Memory Usage (%)",
+      "type": "gauge",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 75 },
+              { "color": "red", "value": 90 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "(neuron_runtime_memory_used_bytes{instance=~\"$instance\"} / neuron_runtime_memory_total_bytes{instance=~\"$instance\"}) * 100",
+          "legendFormat": "{{instance}}"
+        }
+      ]
+    },
+    {
+      "title": "Execution Latency (ms)",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        }
+      },
+      "targets": [
+        {
+          "expr": "neuron_execution_latency{instance=~\"$instance\"}",
+          "legendFormat": "Core {{neuroncore}} — {{instance}}"
+        }
+      ]
+    },
+    {
+      "title": "Execution Errors (rate/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.01 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "rate(neuron_execution_errors_total{instance=~\"$instance\"}[5m])",
+          "legendFormat": "Errors/s — {{instance}}"
+        }
+      ]
+    },
+    {
+      "title": "NeuronCore vCPU Usage",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        }
+      },
+      "targets": [
+        {
+          "expr": "neuron_runtime_vcpu_usage{instance=~\"$instance\"}",
+          "legendFormat": "vCPU — {{instance}}"
+        }
+      ]
+    },
+    {
+      "title": "Model Shared Scratchpad Memory",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decbytes"
+        }
+      },
+      "targets": [
+        {
+          "expr": "neuroncore_memory_usage_model_shared_scratchpad{instance=~\"$instance\"}",
+          "legendFormat": "Core {{neuroncore}} — {{instance}}"
+        }
+      ]
+    },
+    {
+      "title": "Instance Info",
+      "type": "table",
+      "gridPos": { "h": 5, "w": 24, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "expr": "neuron_instance_info{instance=~\"$instance\"}",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "__name__": true, "Time": true, "Value": true },
+            "indexByName": {},
+            "renameByName": {}
+          }
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["neuron", "inferentia", "trainium", "aws", "genai"],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus"
+      },
+      {
+        "name": "instance",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "query": "label_values(neuroncore_utilization, instance)",
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "AWS Neuron — Inferentia/Trainium Metrics",
+  "uid": "aws-neuron-metrics"
+}

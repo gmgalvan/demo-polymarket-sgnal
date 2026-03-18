@@ -1,0 +1,177 @@
+{
+  "annotations": { "list": [] },
+  "description": "vLLM model serving metrics — latency (TTFT, TPOT, E2E), throughput, queue depth, token rates",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "title": "Time to First Token (TTFT) — P50 / P90 / P99",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, rate(vllm:time_to_first_token_seconds_bucket{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "P50 — {{instance}}"
+        },
+        {
+          "expr": "histogram_quantile(0.90, rate(vllm:time_to_first_token_seconds_bucket{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "P90 — {{instance}}"
+        },
+        {
+          "expr": "histogram_quantile(0.99, rate(vllm:time_to_first_token_seconds_bucket{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "P99 — {{instance}}"
+        }
+      ]
+    },
+    {
+      "title": "Time per Output Token (TPOT / ITL) — P50 / P90 / P99",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, rate(vllm:time_per_output_token_seconds_bucket{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "P50 — {{instance}}"
+        },
+        {
+          "expr": "histogram_quantile(0.90, rate(vllm:time_per_output_token_seconds_bucket{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "P90 — {{instance}}"
+        },
+        {
+          "expr": "histogram_quantile(0.99, rate(vllm:time_per_output_token_seconds_bucket{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "P99 — {{instance}}"
+        }
+      ]
+    },
+    {
+      "title": "End-to-End Request Latency — P50 / P90 / P99",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, rate(vllm:e2e_request_latency_seconds_bucket{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "P50 — {{instance}}"
+        },
+        {
+          "expr": "histogram_quantile(0.90, rate(vllm:e2e_request_latency_seconds_bucket{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "P90 — {{instance}}"
+        },
+        {
+          "expr": "histogram_quantile(0.99, rate(vllm:e2e_request_latency_seconds_bucket{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "P99 — {{instance}}"
+        }
+      ]
+    },
+    {
+      "title": "Request Throughput (QPS)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "reqps" } },
+      "targets": [
+        {
+          "expr": "sum(rate(vllm:e2e_request_latency_seconds_count{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "Total QPS"
+        },
+        {
+          "expr": "rate(vllm:e2e_request_latency_seconds_count{instance=~\"$instance\"}[5m])",
+          "legendFormat": "{{instance}}"
+        }
+      ]
+    },
+    {
+      "title": "Requests Waiting / Running",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [
+        {
+          "expr": "vllm:num_requests_waiting{instance=~\"$instance\"}",
+          "legendFormat": "Waiting — {{instance}}"
+        },
+        {
+          "expr": "vllm:num_requests_running{instance=~\"$instance\"}",
+          "legendFormat": "Running — {{instance}}"
+        }
+      ]
+    },
+    {
+      "title": "Token Throughput (tokens/sec)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "short", "displayName": "tok/s" } },
+      "targets": [
+        {
+          "expr": "sum(rate(vllm:prompt_tokens_total{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "Prompt tokens/s"
+        },
+        {
+          "expr": "sum(rate(vllm:generation_tokens_total{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "Generation tokens/s"
+        }
+      ]
+    },
+    {
+      "title": "Cumulative Tokens Processed",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [
+        {
+          "expr": "sum(vllm:prompt_tokens_total{instance=~\"$instance\"})",
+          "legendFormat": "Prompt tokens"
+        },
+        {
+          "expr": "sum(vllm:generation_tokens_total{instance=~\"$instance\"})",
+          "legendFormat": "Generation tokens"
+        }
+      ]
+    },
+    {
+      "title": "HTTP Request Status Codes",
+      "type": "timeseries",
+      "gridPos": { "h": 4, "w": 16, "x": 8, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "reqps" } },
+      "targets": [
+        {
+          "expr": "sum by (status_code) (rate(vllm:request_success_total{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "{{status_code}}"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["vllm", "llm", "inference", "genai"],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus"
+      },
+      {
+        "name": "instance",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "query": "label_values(vllm:num_requests_running, instance)",
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "vLLM Model Serving",
+  "uid": "vllm-model-serving"
+}
