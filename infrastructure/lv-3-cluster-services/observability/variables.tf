@@ -127,7 +127,7 @@ variable "loki_chart_version" {
 variable "fluent_bit_chart_version" {
   description = "Fluent Bit Helm chart version. null = latest."
   type        = string
-  default     = "0.49.3"
+  default     = "0.49.1"
   nullable    = true
 }
 
@@ -162,7 +162,13 @@ variable "prometheus_storage_size" {
 variable "prometheus_storage_class" {
   description = "StorageClass for Prometheus PVC. Empty = cluster default."
   type        = string
-  default     = ""
+  default     = "gp2"
+}
+
+variable "loki_storage_class" {
+  description = "StorageClass for Loki PVC. Empty = cluster default."
+  type        = string
+  default     = "gp2"
 }
 
 # ── Grafana ─────────────────────────────────────────────────────────────────
@@ -195,4 +201,10 @@ variable "langfuse_salt" {
   type        = string
   sensitive   = true
   default     = "langfuse-salt-change-me"
+}
+
+variable "langfuse_postgres_storage_class" {
+  description = "StorageClass for the bundled LangFuse PostgreSQL PVC. Empty = cluster default."
+  type        = string
+  default     = "gp2"
 }

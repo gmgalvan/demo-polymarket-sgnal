@@ -30,11 +30,15 @@ resource "helm_release" "langfuse" {
     yamlencode({
       langfuse = {
         nextauth = {
-          secret = var.langfuse_nextauth_secret
-          url    = "http://langfuse.${var.langfuse_namespace}.svc.cluster.local:3000"
+          secret = {
+            value = var.langfuse_nextauth_secret
+          }
+          url = "http://langfuse.${var.langfuse_namespace}.svc.cluster.local:3000"
         }
 
-        salt = var.langfuse_salt
+        salt = {
+          value = var.langfuse_salt
+        }
 
         telemetry = {
           enabled = false
@@ -53,8 +57,9 @@ resource "helm_release" "langfuse" {
             workload = "core"
           }
           persistence = {
-            enabled = true
-            size    = "10Gi"
+            enabled      = true
+            size         = "10Gi"
+            storageClass = var.langfuse_postgres_storage_class != "" ? var.langfuse_postgres_storage_class : null
           }
         }
       }

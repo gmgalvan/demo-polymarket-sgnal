@@ -34,8 +34,8 @@ resource "helm_release" "loki" {
         schemaConfig = {
           configs = [
             {
-              from  = "2024-01-01"
-              store = "tsdb"
+              from         = "2024-01-01"
+              store        = "tsdb"
               object_store = "filesystem"
               schema       = "v13"
               index = {
@@ -53,16 +53,17 @@ resource "helm_release" "loki" {
           workload = "core"
         }
         persistence = {
-          enabled = true
-          size    = "10Gi"
+          enabled      = true
+          size         = "10Gi"
+          storageClass = var.loki_storage_class != "" ? var.loki_storage_class : null
         }
       }
 
       # Disable components not needed in single-binary mode
-      read      = { replicas = 0 }
-      write     = { replicas = 0 }
-      backend   = { replicas = 0 }
-      gateway   = { enabled = true }
+      read         = { replicas = 0 }
+      write        = { replicas = 0 }
+      backend      = { replicas = 0 }
+      gateway      = { enabled = true }
       chunksCache  = { enabled = false }
       resultsCache = { enabled = false }
     })

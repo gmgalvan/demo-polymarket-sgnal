@@ -68,13 +68,13 @@ resource "kubectl_manifest" "neuron_monitor_daemonset" {
 
           containers = [
             {
-              name  = "neuron-monitor"
+              name = "neuron-monitor"
               # Official Neuron SDK container with neuron-monitor pre-installed
               image = "public.ecr.aws/neuron/neuron-monitor:latest"
               command = [
                 "neuron-monitor",
-                "-p", "8000",              # Prometheus exporter port
-                "-n", "neuron-monitor",    # Service name label
+                "-p", "8000",           # Prometheus exporter port
+                "-n", "neuron-monitor", # Service name label
               ]
               ports = [
                 {

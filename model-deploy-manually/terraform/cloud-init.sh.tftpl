@@ -1,0 +1,56 @@
+#!/bin/bash
+set -euxo pipefail
+
+mkdir -p /opt/model-deploy-manually
+
+cat <<'EOF_REQ' | base64 -d > /opt/model-deploy-manually/requirements.txt
+${requirements_txt_b64}
+EOF_REQ
+
+cat <<'EOF_LOAD' | base64 -d > /opt/model-deploy-manually/01-load-model.py
+${load_model_py_b64}
+EOF_LOAD
+
+cat <<'EOF_APP' | base64 -d > /opt/model-deploy-manually/server.py
+${server_py_b64}
+EOF_APP
+
+if [ -x /opt/pytorch/bin/pip ] && [ -x /opt/pytorch/bin/uvicorn ]; then
+  PYTHON_BIN="/opt/pytorch/bin/python"
+  PIP_BIN="/opt/pytorch/bin/pip"
+  UVCORN_BIN="/opt/pytorch/bin/uvicorn"
+else
+  dnf install -y python3 python3-pip
+  python3 -m venv /opt/model-deploy-manually/.venv
+  PYTHON_BIN="/opt/model-deploy-manually/.venv/bin/python"
+  PIP_BIN="/opt/model-deploy-manually/.venv/bin/pip"
+  UVCORN_BIN="/opt/model-deploy-manually/.venv/bin/uvicorn"
+fi
+
+"$${PIP_BIN}" install --upgrade pip
+"$${PIP_BIN}" install -r /opt/model-deploy-manually/requirements.txt
+
+cat <<EOF_ENV > /opt/model-deploy-manually/.env
+export MODEL_ID=${jsonencode(model_id)}
+export HF_TOKEN=${jsonencode(hf_token)}
+EOF_ENV
+
+cat <<EOF_RUN > /opt/model-deploy-manually/run-server.sh
+#!/bin/bash
+set -euo pipefail
+source /opt/model-deploy-manually/.env
+cd /opt/model-deploy-manually
+exec $${UVCORN_BIN} server:app --host 0.0.0.0 --port ${server_port}
+EOF_RUN
+
+cat <<EOF_RUN_LOCAL > /opt/model-deploy-manually/run-load-model.sh
+#!/bin/bash
+set -euo pipefail
+source /opt/model-deploy-manually/.env
+cd /opt/model-deploy-manually
+exec $${PYTHON_BIN} /opt/model-deploy-manually/01-load-model.py
+EOF_RUN_LOCAL
+
+chmod +x /opt/model-deploy-manually/run-server.sh
+chmod +x /opt/model-deploy-manually/run-load-model.sh
+nohup /opt/model-deploy-manually/run-server.sh >/var/log/model-server.log 2>&1 &

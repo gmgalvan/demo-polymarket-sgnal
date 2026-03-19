@@ -1,4 +1,19 @@
 terraform {
+  required_providers {
+    aws = {
+      source = "hashicorp/aws"
+    }
+    helm = {
+      source = "hashicorp/helm"
+    }
+    kubernetes = {
+      source = "hashicorp/kubernetes"
+    }
+    kubectl = {
+      source = "alekc/kubectl"
+    }
+  }
+
   backend "s3" {
     bucket       = "352-demo-dev-s3b-tfstate-backend"
     key          = "dev/lv-3-cluster-services/observability/terraform.tfstate"

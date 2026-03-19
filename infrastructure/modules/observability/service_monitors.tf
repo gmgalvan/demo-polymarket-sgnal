@@ -213,7 +213,7 @@ resource "kubectl_manifest" "mcp_servers_pod_monitor" {
       }
       selector = {
         matchLabels = {
-          "app.kubernetes.io/part-of" = "polymarket-signal"
+          "app.kubernetes.io/part-of"   = "polymarket-signal"
           "app.kubernetes.io/component" = "mcp-server"
         }
       }

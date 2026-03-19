@@ -55,7 +55,7 @@ resource "helm_release" "kube_prometheus_stack" {
 
       # ── Grafana ────────────────────────────────────────────────────────
       grafana = {
-        enabled = true
+        enabled       = true
         adminPassword = var.grafana_admin_password
 
         # Default dashboards (K8s compute resources, node exporter, etc.)

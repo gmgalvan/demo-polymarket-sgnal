@@ -22,6 +22,10 @@ resource "helm_release" "otel_collector" {
     yamlencode({
       mode = "deployment"
 
+      image = {
+        repository = "otel/opentelemetry-collector-contrib"
+      }
+
       replicaCount = 1
 
       nodeSelector = {
@@ -44,7 +48,7 @@ resource "helm_release" "otel_collector" {
 
         processors = {
           batch = {
-            timeout       = "5s"
+            timeout         = "5s"
             send_batch_size = 512
           }
 
@@ -69,9 +73,9 @@ resource "helm_release" "otel_collector" {
         exporters = {
           # Export to Prometheus for span metrics (request count, duration)
           prometheus = {
-            endpoint        = "0.0.0.0:8889"
-            namespace       = "otel"
-            send_timestamps = true
+            endpoint          = "0.0.0.0:8889"
+            namespace         = "otel"
+            send_timestamps   = true
             metric_expiration = "5m"
           }
 
@@ -81,7 +85,7 @@ resource "helm_release" "otel_collector" {
             tls = {
               insecure = true
             }
-          } : {
+            } : {
             endpoint = "localhost:4317"
             tls = {
               insecure = true
@@ -103,7 +107,6 @@ resource "helm_release" "otel_collector" {
               }
             }
             dimensions = [
-              { name = "service.name" },
               { name = "http.method" },
               { name = "http.status_code" }
             ]
@@ -134,19 +137,19 @@ resource "helm_release" "otel_collector" {
       # Expose ports for receiving traces and serving Prometheus metrics
       ports = {
         otlp = {
-          enabled      = true
+          enabled       = true
           containerPort = var.otel_otlp_grpc_port
           servicePort   = var.otel_otlp_grpc_port
           protocol      = "TCP"
         }
         otlp-http = {
-          enabled      = true
+          enabled       = true
           containerPort = var.otel_otlp_http_port
           servicePort   = var.otel_otlp_http_port
           protocol      = "TCP"
         }
         prometheus = {
-          enabled      = true
+          enabled       = true
           containerPort = 8889
           servicePort   = 8889
           protocol      = "TCP"
