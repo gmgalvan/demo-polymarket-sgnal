@@ -114,12 +114,12 @@ Grant EKS access entry + admin policy to the active principal:
 
 ```bash
 aws eks create-access-entry \
-  --cluster-name 352-demo-dev-eks \
+  --cluster-name <your-cluster-name> \
   --region us-east-1 \
   --principal-arn <PRINCIPAL_ARN>
 
 aws eks associate-access-policy \
-  --cluster-name 352-demo-dev-eks \
+  --cluster-name <your-cluster-name> \
   --region us-east-1 \
   --principal-arn <PRINCIPAL_ARN> \
   --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy \
@@ -130,12 +130,12 @@ Validate:
 
 ```bash
 aws eks describe-access-entry \
-  --cluster-name 352-demo-dev-eks \
+  --cluster-name <your-cluster-name> \
   --region us-east-1 \
   --principal-arn <PRINCIPAL_ARN>
 
 aws eks list-associated-access-policies \
-  --cluster-name 352-demo-dev-eks \
+  --cluster-name <your-cluster-name> \
   --region us-east-1 \
   --principal-arn <PRINCIPAL_ARN>
 ```

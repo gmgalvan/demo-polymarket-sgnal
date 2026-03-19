@@ -7,7 +7,7 @@ The idea here is just two steps:
 
 ## 1. Local example
 
-[`app/01-load-model.py`](/home/gmgalvan/demo-polymarket-signal/model-deploy-manually/app/01-load-model.py) is almost the same as the book example.
+[`app/01-load-model.py`](app/01-load-model.py) is almost the same as the book example.
 
 ```bash
 cd model-deploy-manually/app
@@ -19,7 +19,7 @@ python 01-load-model.py
 
 ## 2. Server example
 
-[`app/server.py`](/home/gmgalvan/demo-polymarket-signal/model-deploy-manually/app/server.py) is the minimal FastAPI version.
+[`app/server.py`](app/server.py) is the minimal FastAPI version.
 
 ```bash
 cd model-deploy-manually/app
@@ -37,7 +37,7 @@ curl http://127.0.0.1:8000/generate \
 
 ## 3. Terraform
 
-The [`terraform/`](/home/gmgalvan/demo-polymarket-signal/model-deploy-manually/terraform/main.tf) folder only does this:
+The [`terraform/`](terraform/main.tf) folder only does this:
 
 - creates one GPU EC2 instance
 - copies `01-load-model.py`
@@ -82,7 +82,7 @@ Or run the script directly with the Deep Learning AMI Python:
 
 That runs:
 
-- [`01-load-model.py`](/home/gmgalvan/demo-polymarket-signal/model-deploy-manually/app/01-load-model.py)
+- [`01-load-model.py`](app/01-load-model.py)
 - with the same `MODEL_ID` configured in Terraform
 - directly on the EC2 GPU instance
 

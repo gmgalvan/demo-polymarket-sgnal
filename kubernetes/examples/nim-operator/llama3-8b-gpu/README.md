@@ -38,7 +38,7 @@ Get the key at https://ngc.nvidia.com → Account → Setup → Generate Persona
 ### 3. Cluster access
 
 ```bash
-aws eks update-kubeconfig --region us-east-1 --name 352-demo-dev-eks
+aws eks update-kubeconfig --region us-east-1 --name <your-cluster-name>
 kubectl get nodepools   # should show gpu-inference
 ```
 

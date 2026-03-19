@@ -25,7 +25,7 @@ lv-3-cluster-services/karpenter  ← Karpenter + NVIDIA/Neuron device plugins + 
 
 ```bash
 aws sts get-caller-identity   # confirm you are authenticated
-aws eks update-kubeconfig --region us-east-1 --name 352-demo-dev-eks
+aws eks update-kubeconfig --region us-east-1 --name <your-cluster-name>
 kubectl get nodes             # should show ARM + GPU + inf2 nodes
 ```
 

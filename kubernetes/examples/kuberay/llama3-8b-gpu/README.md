@@ -64,7 +64,7 @@ kubectl get crd | grep ray
 ### 2. Cluster access
 
 ```bash
-aws eks update-kubeconfig --region us-east-1 --name 352-demo-dev-eks
+aws eks update-kubeconfig --region us-east-1 --name <your-cluster-name>
 kubectl get nodepools   # should show gpu-inference and graviton
 ```
 

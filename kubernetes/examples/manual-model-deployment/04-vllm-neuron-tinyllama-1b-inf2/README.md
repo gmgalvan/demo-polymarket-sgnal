@@ -164,7 +164,7 @@ Response meaning:
 Create/update Kubernetes secret (recommended from local `.env`):
 
 ```bash
-cd /home/gmgalvan/demo-polymarket-signal
+cd /path/to/demo-polymarket-sgnal
 HF_TOKEN=$(grep '^HUGGINGFACE_API_KEY=' .env | cut -d= -f2- | sed 's/^"//' | sed 's/"$//')
 
 kubectl create secret generic huggingface-token \
@@ -221,7 +221,7 @@ curl http://127.0.0.1:8000/v1/chat/completions \
 Instead of backgrounding multiple `curl` commands, use the included async load script:
 
 ```bash
-cd /home/gmgalvan/demo-polymarket-sgnal/kubernetes/examples/manual-model-deployment/04-vllm-neuron-tinyllama-1b-inf2
+cd /path/to/demo-polymarket-sgnal/kubernetes/examples/manual-model-deployment/04-vllm-neuron-tinyllama-1b-inf2
 python3 load_test_async.py --requests 10 --concurrency 5
 ```
 

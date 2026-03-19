@@ -49,7 +49,7 @@ Comando:
 ```bash
 curl -s http://127.0.0.1:8000/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -d @/home/gmgalvan/demo-polymarket-sgnal/kubernetes/examples/manual-model-deployment/04-vllm-neuron-tinyllama-1b-inf2/request.chat-test.json
+  -d @kubernetes/examples/manual-model-deployment/04-vllm-neuron-tinyllama-1b-inf2/request.chat-test.json
 ```
 
 Qué panel mirar:
@@ -100,7 +100,7 @@ Cómo leerlo:
 Usa el script async:
 
 ```bash
-cd /home/gmgalvan/demo-polymarket-sgnal/kubernetes/examples/manual-model-deployment/04-vllm-neuron-tinyllama-1b-inf2
+cd kubernetes/examples/manual-model-deployment/04-vllm-neuron-tinyllama-1b-inf2
 python3 load_test_async.py --requests 10 --concurrency 5 --print-samples 2
 ```
 
@@ -238,13 +238,13 @@ Request simple:
 ```bash
 curl -s http://127.0.0.1:8000/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -d @/home/gmgalvan/demo-polymarket-sgnal/kubernetes/examples/manual-model-deployment/04-vllm-neuron-tinyllama-1b-inf2/request.chat-test.json
+  -d @kubernetes/examples/manual-model-deployment/04-vllm-neuron-tinyllama-1b-inf2/request.chat-test.json
 ```
 
 Carga moderada:
 
 ```bash
-cd /home/gmgalvan/demo-polymarket-sgnal/kubernetes/examples/manual-model-deployment/04-vllm-neuron-tinyllama-1b-inf2
+cd kubernetes/examples/manual-model-deployment/04-vllm-neuron-tinyllama-1b-inf2
 python3 load_test_async.py --requests 10 --concurrency 5 --print-samples 2
 ```
 
@@ -271,3 +271,36 @@ Para demo, lo más estable es:
 - mismo endpoint
 - cambiar solo la carga
 - leer el efecto en Grafana
+
+---
+
+## 10) Nota para GPU L40S
+
+En esta demo con `Qwen 2.5 3B` sobre `NVIDIA L40S`, puede pasar que:
+
+- `DCGM_FI_DEV_GPU_UTIL` permanezca en `0`
+- aunque el modelo sí esté funcionando y respondiendo
+
+Eso no significa que la GPU esté inactiva.
+
+En ese caso, usa estos paneles como señal principal de actividad real:
+
+- `GPU Memory Used (GiB)`
+- `GPU Power Draw (W)`
+- `SM Clock (MHz)`
+- `Xid Errors`
+
+Cómo explicarlo:
+
+- “La mejor evidencia aquí no es solo GPU utilization.”
+- “La memoria alta confirma que el modelo está cargado.”
+- “El power draw y el SM clock muestran que la GPU sí está trabajando.”
+- “Xid en cero confirma que no estamos viendo errores del driver.”
+
+Si además el dashboard de `vLLM Model Serving` muestra:
+
+- `QPS`
+- `Token Throughput`
+- `End-to-End Latency`
+
+entonces ya tienes evidencia suficiente de serving + uso real del acelerador, aunque `GPU Utilization (%)` no sea el mejor indicador visual en esta L40S.

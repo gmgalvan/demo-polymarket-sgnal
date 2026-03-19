@@ -59,7 +59,7 @@ image: <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/vllm-neuron:latest
 ### 4. Cluster access
 
 ```bash
-aws eks update-kubeconfig --region us-east-1 --name 352-demo-dev-eks
+aws eks update-kubeconfig --region us-east-1 --name <your-cluster-name>
 kubectl get nodepools   # should show neuron-inference
 ```
 

@@ -13,7 +13,7 @@ Este runbook borra todo en orden seguro:
 
 ```bash
 export AWS_REGION=us-east-1
-export CLUSTER_NAME=352-demo-dev-eks
+export CLUSTER_NAME=<your-cluster-name>
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 ```
 
@@ -22,7 +22,7 @@ export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output tex
 `ai-example` is now a shared namespace (`kubernetes/ai-example-namespace.yaml`).
 
 ```bash
-cd /home/gmgalvan/demo-polymarket-signal
+cd /path/to/demo-polymarket-sgnal
 
 kubectl delete -k kubernetes/ex-vllm-qwen25-3b-gpu --ignore-not-found
 kubectl delete -k kubernetes/ex-inferentia-smoke-inf2 --ignore-not-found
@@ -48,7 +48,7 @@ kubectl get pods -A | grep -E 'ai-example|vllm|neuron-smoke' || true
 ## 2) Cleanup Karpenter (lv-3)
 
 ```bash
-cd /home/gmgalvan/demo-polymarket-signal/infrastructure/lv-3-cluster-services/karpenter
+cd /path/to/demo-polymarket-sgnal/infrastructure/lv-3-cluster-services/karpenter
 terraform init -upgrade
 terraform destroy
 ```
@@ -70,14 +70,14 @@ kubectl delete ec2nodeclass arm-general gpu-inference neuron-inference --ignore-
 Luego vuelve a correr:
 
 ```bash
-cd /home/gmgalvan/demo-polymarket-signal/infrastructure/lv-3-cluster-services/karpenter
+cd /path/to/demo-polymarket-sgnal/infrastructure/lv-3-cluster-services/karpenter
 terraform destroy
 ```
 
 Si queda atorado específicamente en `module.eks_karpenter.helm_release.karpenter_crd`:
 
 ```bash
-cd /home/gmgalvan/demo-polymarket-signal/infrastructure/lv-3-cluster-services/karpenter
+cd /path/to/demo-polymarket-sgnal/infrastructure/lv-3-cluster-services/karpenter
 
 # borra metadata Helm del release atascado
 kubectl delete secret -n kube-system -l owner=helm,name=karpenter-crd --ignore-not-found
@@ -110,7 +110,7 @@ kubectl get ec2nodeclasses
 ## 3) Cleanup EKS (lv-2)
 
 ```bash
-cd /home/gmgalvan/demo-polymarket-signal/infrastructure/lv-2-core-compute/eks
+cd /path/to/demo-polymarket-sgnal/infrastructure/lv-2-core-compute/eks
 terraform init -upgrade
 terraform destroy
 ```
@@ -118,7 +118,7 @@ terraform destroy
 ## 4) Cleanup VPC (lv-0)
 
 ```bash
-cd /home/gmgalvan/demo-polymarket-signal/infrastructure/lv-0-networking/vpc
+cd /path/to/demo-polymarket-sgnal/infrastructure/lv-0-networking/vpc
 terraform init -upgrade
 terraform destroy
 ```

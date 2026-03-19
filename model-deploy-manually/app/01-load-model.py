@@ -3,7 +3,6 @@ import os
 import torch
 import transformers
 
-
 model_id = os.environ.get("MODEL_ID", "TinyLlama/TinyLlama-1.1B-Chat-v1.0")  # Hugging Face model identifier.
 
 pipeline_kwargs = {

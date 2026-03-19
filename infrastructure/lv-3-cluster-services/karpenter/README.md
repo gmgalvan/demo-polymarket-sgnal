@@ -32,8 +32,8 @@ terraform apply
 If `lv-2` was just created, run:
 
 ```bash
-aws eks describe-cluster --name 352-demo-dev-eks --region us-east-1 --query 'cluster.status' --output text
-aws eks update-kubeconfig --region us-east-1 --name 352-demo-dev-eks
+aws eks describe-cluster --name <your-cluster-name> --region us-east-1 --query 'cluster.status' --output text
+aws eks update-kubeconfig --region us-east-1 --name <your-cluster-name>
 kubectl get nodes
 ```
 

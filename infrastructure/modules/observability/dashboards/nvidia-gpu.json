@@ -7,7 +7,7 @@
   "links": [],
   "panels": [
     {
-      "title": "GPU Utilization (%)",
+      "title": "Reported GPU Utilization (%)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },

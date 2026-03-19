@@ -28,7 +28,7 @@ aws sts get-caller-identity
 
 cd infrastructure/lv-2-core-compute/eks
 terraform apply \
-  -var='cluster_admin_principal_arns=["arn:aws:iam::023890853822:role/YOUR_ADMIN_ROLE"]'
+  -var='cluster_admin_principal_arns=["arn:aws:iam::<account-id>:role/YOUR_ADMIN_ROLE"]'
 ```
 
 You can include multiple principals in the same list.
@@ -59,7 +59,7 @@ If Console still shows no Kubernetes objects:
 
 ```bash
 AWS_REGION=us-east-1
-CLUSTER=352-demo-dev-eks
+CLUSTER=<your-cluster-name>
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 PRINCIPAL_ARN=$(aws sts get-caller-identity --query Arn --output text)
 CLUSTER_ARN=arn:aws:eks:${AWS_REGION}:${ACCOUNT_ID}:cluster/${CLUSTER}

@@ -41,6 +41,10 @@ infrastructure/**/*.tfvars
 !infrastructure/**/*.tfvars.example
 infrastructure/**/crash.log
 infrastructure/**/.terraform.tfstate.lock.info
+model-deploy-manually/terraform/.terraform/
+model-deploy-manually/terraform/*.tfstate
+model-deploy-manually/terraform/*.tfstate.backup
+model-deploy-manually/terraform/.terraform.lock.hcl
 
 # Kubernetes
 kubeconfig
