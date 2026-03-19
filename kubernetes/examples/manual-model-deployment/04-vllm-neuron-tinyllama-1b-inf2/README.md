@@ -216,6 +216,45 @@ curl http://127.0.0.1:8000/v1/chat/completions \
   -d @kubernetes/examples/manual-model-deployment/04-vllm-neuron-tinyllama-1b-inf2/request.chat-test.json
 ```
 
+## 5) Generate demo load
+
+Instead of backgrounding multiple `curl` commands, use the included async load script:
+
+```bash
+cd /home/gmgalvan/demo-polymarket-sgnal/kubernetes/examples/manual-model-deployment/04-vllm-neuron-tinyllama-1b-inf2
+python3 load_test_async.py --requests 10 --concurrency 5
+```
+
+Useful variants:
+
+```bash
+# Gentle burst for a live demo
+python3 load_test_async.py --requests 10 --concurrency 5 --print-samples 2
+
+# Stronger burst to show queue/throughput movement
+python3 load_test_async.py --requests 30 --concurrency 10
+
+# Target a different forwarded endpoint
+python3 load_test_async.py --url http://127.0.0.1:8000/v1/chat/completions --requests 20 --concurrency 8
+```
+
+What the script reports:
+- total requests
+- success/failure count
+- wall time
+- effective requests/sec
+- latency min / avg / p50 / p90 / p99 / max
+
+Recommended live-demo flow:
+- Keep Grafana open on `vLLM Model Serving` and `AWS Neuron — Inferentia/Trainium Metrics`
+- Run `python3 load_test_async.py --requests 10 --concurrency 5`
+- Watch:
+  - `Request Throughput (QPS)`
+  - `Token Throughput (tokens/sec)`
+  - `Requests Waiting / Running`
+  - `NeuronCore Utilization (%)`
+  - `End-to-End Request Latency`
+
 ## Troubleshooting
 
 If pod is `ImagePullBackOff`:

@@ -31,6 +31,11 @@ spec:
       nodeSelector:
         workload: neuron
       tolerations:
+        # Neuron pods can request either:
+        # - aws.amazon.com/neuroncore : individual NeuronCores
+        # - aws.amazon.com/neuron     : full Neuron devices
+        #
+        # This example uses neuroncore for a small single-model deployment.
         - key: aws.amazon.com/neuron
           operator: Equal
           value: "true"
@@ -71,10 +76,40 @@ spec:
                   name: huggingface-token
                   key: token
                   optional: true
+            # Common AWS Neuron runtime knobs you may tune for larger demos:
+            #
+            # - NEURON_RT_VISIBLE_CORES:
+            #   chooses which NeuronCores the process can see.
+            #
+            # - NEURON_RT_NUM_CORES:
+            #   reserves a fixed number of NeuronCores for the process.
+            #
+            # - NEURON_RT_MULTI_INSTANCE_SHARED_WEIGHTS:
+            #   allows multiple instances of the same model to share weights
+            #   across different NeuronCores to reduce memory duplication.
+            #
+            # - NEURON_RT_ASYNC_EXEC_MAX_INFLIGHT_REQUESTS:
+            #   controls how many async execution requests can be in flight.
+            #
+            # These are intentionally not enabled by default here because the
+            # best value depends on model size, batch/concurrency, and the
+            # target Inferentia instance type.
+            #
+            # Example:
+            # - name: NEURON_RT_NUM_CORES
+            #   value: "1"
+            # - name: NEURON_RT_ASYNC_EXEC_MAX_INFLIGHT_REQUESTS
+            #   value: "2"
           ports:
             - containerPort: 8000
               name: http
           resources:
+            # Resource knobs:
+            # - aws.amazon.com/neuroncore requests individual cores
+            # - aws.amazon.com/neuron requests full devices
+            #
+            # For Inf2/Trn workloads, the Neuron scheduler extension handles
+            # contiguous / topology-aware placement of devices and cores.
             requests:
               cpu: "1500m"
               memory: "10Gi"

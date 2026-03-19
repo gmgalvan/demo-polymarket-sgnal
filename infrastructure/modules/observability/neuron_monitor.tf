@@ -18,7 +18,8 @@
 # Reference: https://awsdocs-neuron.readthedocs-hosted.com/en/latest/tools/neuron-sys-tools/neuron-monitor-user-guide.html
 
 resource "kubectl_manifest" "neuron_monitor_daemonset" {
-  count = var.install_neuron_monitor ? 1 : 0
+  count            = var.install_neuron_monitor ? 1 : 0
+  wait_for_rollout = false
 
   yaml_body = yamlencode({
     apiVersion = "apps/v1"
@@ -63,18 +64,15 @@ resource "kubectl_manifest" "neuron_monitor_daemonset" {
             }
           ]
 
-          # Use host PID namespace to access Neuron runtime metrics
-          hostPID = true
-
           containers = [
             {
               name = "neuron-monitor"
-              # Official Neuron SDK container with neuron-monitor pre-installed
-              image = "public.ecr.aws/neuron/neuron-monitor:latest"
+              # Official AWS Neuron monitor image used in the EKS guide.
+              image = "public.ecr.aws/g4h4h0b5/neuron-monitor:1.0.0"
               command = [
-                "neuron-monitor",
-                "-p", "8000",           # Prometheus exporter port
-                "-n", "neuron-monitor", # Service name label
+                "/bin/sh",
+                "-c",
+                "neuron-monitor | /opt/aws/neuron/bin/neuron-monitor-prometheus.py --port 8000",
               ]
               ports = [
                 {
@@ -97,25 +95,6 @@ resource "kubectl_manifest" "neuron_monitor_daemonset" {
 
               securityContext = {
                 privileged = true
-              }
-
-              # neuron-monitor needs access to the Neuron runtime socket
-              volumeMounts = [
-                {
-                  name      = "neuron-run"
-                  mountPath = "/run/neuron"
-                  readOnly  = true
-                }
-              ]
-            }
-          ]
-
-          volumes = [
-            {
-              name = "neuron-run"
-              hostPath = {
-                path = "/run/neuron"
-                type = "Directory"
               }
             }
           ]

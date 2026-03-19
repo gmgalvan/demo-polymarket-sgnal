@@ -301,9 +301,71 @@ Template variables: datasource (prometheus), instance (multi-select).
 
 ### 3. vLLM Model Serving
 
-Panels: TTFT P50/P90/P99, TPOT P50/P90/P99, E2E Latency P50/P90/P99, Request Throughput (QPS), Requests Waiting/Running, Token Throughput (tok/s), Cumulative Tokens, HTTP Status Codes.
+Panels: TTFT P50/P90/P99, Approx TPOT avg, E2E Latency P50/P90/P99, Request Throughput (QPS), Requests Waiting/Running, Token Throughput (tok/s), Tokens Processed in Selected Range, HTTP Status Codes.
 
 Template variables: datasource (prometheus), instance (multi-select).
+
+#### How to explain the vLLM dashboard in Spanish
+
+This section is intended as a short speaking guide for demos or presentations.
+
+**TTFT (Time To First Token)**
+- `Tiempo hasta el primer token`
+- Measures how long the model takes to start responding after the request arrives.
+- It is the best quick proxy for perceived responsiveness.
+- Lower is better.
+
+**Approx TPOT / ITL (Time Per Output Token / Inter-Token Latency)**
+- `Tiempo por token de salida`
+- Measures the time between one generated token and the next while the model is already streaming.
+- It describes how fluid the answer feels once generation has started.
+- In this repo, if the native TPOT histogram is not exposed, the panel can be derived approximately as:
+  - `(E2E latency sum - TTFT sum) / generation tokens`
+- That means it should be explained as an average approximation, not as a true P50/P90/P99 histogram.
+
+**End-to-End Request Latency**
+- `Latencia total de la solicitud`
+- Measures total time from request arrival to completed response.
+- Use this when you want to explain full user-facing latency, not only response start.
+
+**Request Throughput (QPS)**
+- `Solicitudes por segundo`
+- Shows how many requests the service is handling per second.
+- Useful for capacity and saturation discussions.
+
+**Requests Waiting / Running**
+- `Solicitudes en espera / en ejecución`
+- `Waiting` means queued requests.
+- `Running` means requests actively being served.
+- If `Waiting` grows and stays high, the service is saturating.
+
+**Token Throughput (tokens/sec)**
+- `Rendimiento de tokens por segundo`
+- Shows processing rate for prompt tokens and generation tokens.
+- This is often more useful than QPS for LLMs because request sizes vary a lot.
+
+**HTTP Request Status Codes**
+- `Códigos de estado HTTP`
+- Shows the rate of successful or failed responses.
+- Use it to quickly explain whether traffic is healthy (`200`) or failing (`4xx` / `5xx`).
+
+**Tokens Processed in Selected Range**
+- `Tokens procesados en el rango seleccionado`
+- `Prompt tokens` are input tokens: system prompt, user prompt, and prior context sent to the model.
+- `Generation tokens` are output tokens: the text produced by the model.
+- This panel is easier to explain in demos because it uses the selected Grafana time range.
+- In this dashboard, the panel queries:
+  - `sum(increase(vllm:prompt_tokens_total{...}[$__range]))`
+  - `sum(increase(vllm:generation_tokens_total{...}[$__range]))`
+- So it should be explained as total tokens processed during the visible dashboard window, not as lifetime total and not as the token count of the last request.
+
+**Suggested speaking summary**
+- `TTFT tells us how fast the model starts replying.`
+- `Approx TPOT tells us how fluid the response is once it starts.`
+- `End-to-end latency tells us total response time.`
+- `QPS and tokens per second tell us capacity.`
+- `Waiting vs running tells us whether the service is saturating.`
+- `Tokens in selected range tells us workload processed in the visible time window, split into input and output tokens.`
 
 ### 4. GenAI Platform Overview
 
@@ -365,7 +427,16 @@ terraform plan
 terraform apply
 ```
 
-**Prerequisites:** EKS cluster (lv-2) and Karpenter (lv-3/karpenter) must be deployed first.
+**Prerequisites:** EKS cluster (lv-2), Karpenter (lv-3/karpenter), and EFS (lv-3/efs) must be deployed first.
+
+This repo's layer defaults assume the EFS stack created the `efs-sc` StorageClass for Prometheus, Loki, and LangFuse PostgreSQL persistence. If your cluster uses a different StorageClass, override:
+
+```bash
+terraform apply \
+  -var="prometheus_storage_class=<your-storage-class>" \
+  -var="loki_storage_class=<your-storage-class>" \
+  -var="langfuse_postgres_storage_class=<your-storage-class>"
+```
 
 **Access Grafana:**
 ```bash

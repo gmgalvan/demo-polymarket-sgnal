@@ -13,7 +13,9 @@ resource "helm_release" "loki" {
   chart            = "loki"
   version          = var.loki_chart_version
 
-  timeout = 600
+  timeout         = 600
+  atomic          = true
+  cleanup_on_fail = true
 
   values = [
     yamlencode({
@@ -84,6 +86,9 @@ resource "helm_release" "fluent_bit" {
   repository       = "https://fluent.github.io/helm-charts"
   chart            = "fluent-bit"
   version          = var.fluent_bit_chart_version
+
+  atomic          = true
+  cleanup_on_fail = true
 
   values = [
     yamlencode({

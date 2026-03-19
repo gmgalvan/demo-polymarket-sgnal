@@ -160,15 +160,15 @@ variable "prometheus_storage_size" {
 }
 
 variable "prometheus_storage_class" {
-  description = "StorageClass for Prometheus PVC. Empty = cluster default."
+  description = "StorageClass for Prometheus PVC. Repo default assumes the EFS stack created `efs-sc`."
   type        = string
-  default     = "gp2"
+  default     = "efs-sc"
 }
 
 variable "loki_storage_class" {
-  description = "StorageClass for Loki PVC. Empty = cluster default."
+  description = "StorageClass for Loki PVC. Repo default assumes the EFS stack created `efs-sc`."
   type        = string
-  default     = "gp2"
+  default     = "efs-sc"
 }
 
 # ── Grafana ─────────────────────────────────────────────────────────────────
@@ -204,7 +204,7 @@ variable "langfuse_salt" {
 }
 
 variable "langfuse_postgres_storage_class" {
-  description = "StorageClass for the bundled LangFuse PostgreSQL PVC. Empty = cluster default."
+  description = "StorageClass for the bundled LangFuse PostgreSQL PVC. Repo default assumes the EFS stack created `efs-sc`."
   type        = string
-  default     = "gp2"
+  default     = "efs-sc"
 }

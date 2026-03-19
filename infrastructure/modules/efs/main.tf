@@ -74,15 +74,16 @@ resource "helm_release" "efs_csi_driver" {
   namespace  = "kube-system"
   version    = var.efs_csi_driver_version
 
-  set {
-    name  = "controller.serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-    value = aws_iam_role.efs_csi[0].arn
-  }
-
-  set {
-    name  = "node.serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-    value = aws_iam_role.efs_csi[0].arn
-  }
+  set = [
+    {
+      name  = "controller.serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+      value = aws_iam_role.efs_csi[0].arn
+    },
+    {
+      name  = "node.serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+      value = aws_iam_role.efs_csi[0].arn
+    }
+  ]
 }
 
 ################################################################################
@@ -150,7 +151,7 @@ resource "kubectl_manifest" "storage_class" {
       fileSystemId     = aws_efs_file_system.this.id
       directoryPerms   = "700"
     }
-    reclaimPolicy    = "Retain"
+    reclaimPolicy     = "Retain"
     volumeBindingMode = "Immediate"
   })
 

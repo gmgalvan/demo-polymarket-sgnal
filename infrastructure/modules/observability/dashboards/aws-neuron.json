@@ -27,7 +27,7 @@
       },
       "targets": [
         {
-          "expr": "neuroncore_utilization{instance=~\"$instance\"}",
+          "expr": "100 * neuroncore_utilization_ratio{instance=~\"$instance\"}",
           "legendFormat": "Core {{neuroncore}} — {{instance}}"
         }
       ]
@@ -44,60 +44,59 @@
       },
       "targets": [
         {
-          "expr": "neuron_runtime_memory_used_bytes{instance=~\"$instance\"} / 1073741824",
-          "legendFormat": "Used — {{instance}}"
+          "expr": "neuron_runtime_memory_used_bytes{instance=~\"$instance\",memory_location=\"neuron_device\"} / 1073741824",
+          "legendFormat": "Neuron device — {{instance}}"
         },
         {
-          "expr": "neuron_runtime_memory_total_bytes{instance=~\"$instance\"} / 1073741824",
-          "legendFormat": "Total — {{instance}}"
+          "expr": "neuron_runtime_memory_used_bytes{instance=~\"$instance\",memory_location=\"host\"} / 1048576",
+          "legendFormat": "Host runtime (MiB) — {{instance}}"
         }
       ]
     },
     {
-      "title": "Device Memory Usage (%)",
+      "title": "Neuron Device Memory Used (GiB)",
       "type": "gauge",
       "gridPos": { "h": 6, "w": 8, "x": 0, "y": 8 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "fieldConfig": {
         "defaults": {
-          "unit": "percent",
+          "unit": "decgbytes",
           "min": 0,
-          "max": 100,
           "thresholds": {
             "steps": [
               { "color": "green", "value": null },
-              { "color": "yellow", "value": 75 },
-              { "color": "red", "value": 90 }
+              { "color": "yellow", "value": 8 },
+              { "color": "red", "value": 14 }
             ]
           }
         }
       },
       "targets": [
         {
-          "expr": "(neuron_runtime_memory_used_bytes{instance=~\"$instance\"} / neuron_runtime_memory_total_bytes{instance=~\"$instance\"}) * 100",
+          "expr": "neuron_runtime_memory_used_bytes{instance=~\"$instance\",memory_location=\"neuron_device\"} / 1073741824",
           "legendFormat": "{{instance}}"
         }
       ]
     },
     {
-      "title": "Execution Latency (ms)",
+      "title": "Host Runtime Memory Used (MiB)",
       "type": "timeseries",
       "gridPos": { "h": 6, "w": 8, "x": 8, "y": 8 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "fieldConfig": {
         "defaults": {
-          "unit": "ms"
+          "unit": "mebibytes"
         }
       },
       "targets": [
         {
-          "expr": "neuron_execution_latency{instance=~\"$instance\"}",
-          "legendFormat": "Core {{neuroncore}} — {{instance}}"
+          "expr": "neuron_runtime_memory_used_bytes{instance=~\"$instance\",memory_location=\"host\"} / 1048576",
+          "legendFormat": "Host runtime — {{instance}}"
         }
       ]
     },
     {
-      "title": "Execution Errors (rate/s)",
+      "title": "Neuron Monitor Scrape Up",
       "type": "timeseries",
       "gridPos": { "h": 6, "w": 8, "x": 16, "y": 8 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
@@ -107,20 +106,20 @@
           "thresholds": {
             "steps": [
               { "color": "green", "value": null },
-              { "color": "red", "value": 0.01 }
+              { "color": "red", "value": 0.5 }
             ]
           }
         }
       },
       "targets": [
         {
-          "expr": "rate(neuron_execution_errors_total{instance=~\"$instance\"}[5m])",
-          "legendFormat": "Errors/s — {{instance}}"
+          "expr": "up{service=\"neuron-monitor\",instance=~\"$instance\"}",
+          "legendFormat": "Up — {{instance}}"
         }
       ]
     },
     {
-      "title": "NeuronCore vCPU Usage",
+      "title": "NeuronCore Utilization by Core (%)",
       "type": "timeseries",
       "gridPos": { "h": 6, "w": 12, "x": 0, "y": 14 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
@@ -133,13 +132,13 @@
       },
       "targets": [
         {
-          "expr": "neuron_runtime_vcpu_usage{instance=~\"$instance\"}",
-          "legendFormat": "vCPU — {{instance}}"
+          "expr": "100 * neuroncore_utilization_ratio{instance=~\"$instance\"}",
+          "legendFormat": "Core {{neuroncore}}"
         }
       ]
     },
     {
-      "title": "Model Shared Scratchpad Memory",
+      "title": "Neuron Runtime Memory by Location",
       "type": "timeseries",
       "gridPos": { "h": 6, "w": 12, "x": 12, "y": 14 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
@@ -150,19 +149,19 @@
       },
       "targets": [
         {
-          "expr": "neuroncore_memory_usage_model_shared_scratchpad{instance=~\"$instance\"}",
-          "legendFormat": "Core {{neuroncore}} — {{instance}}"
+          "expr": "neuron_runtime_memory_used_bytes{instance=~\"$instance\"}",
+          "legendFormat": "{{memory_location}} — {{instance}}"
         }
       ]
     },
     {
-      "title": "Instance Info",
+      "title": "Neuron Metrics Target",
       "type": "table",
       "gridPos": { "h": 5, "w": 24, "x": 0, "y": 20 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
-          "expr": "neuron_instance_info{instance=~\"$instance\"}",
+          "expr": "up{service=\"neuron-monitor\",instance=~\"$instance\"}",
           "format": "table",
           "instant": true
         }
@@ -192,7 +191,7 @@
         "name": "instance",
         "type": "query",
         "datasource": { "type": "prometheus", "uid": "${datasource}" },
-        "query": "label_values(neuroncore_utilization, instance)",
+        "query": "label_values(neuroncore_utilization_ratio, instance)",
         "includeAll": true,
         "multi": true,
         "current": { "text": "All", "value": "$__all" }

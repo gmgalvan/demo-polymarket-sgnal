@@ -24,10 +24,16 @@ resource "helm_release" "langfuse" {
   chart            = "langfuse"
   version          = var.langfuse_chart_version
 
-  timeout = 600
+  timeout         = 600
+  atomic          = true
+  cleanup_on_fail = true
 
   values = [
     yamlencode({
+      global = {
+        defaultStorageClass = var.langfuse_postgres_storage_class != "" ? var.langfuse_postgres_storage_class : null
+      }
+
       langfuse = {
         nextauth = {
           secret = {
@@ -61,6 +67,49 @@ resource "helm_release" "langfuse" {
             size         = "10Gi"
             storageClass = var.langfuse_postgres_storage_class != "" ? var.langfuse_postgres_storage_class : null
           }
+        }
+      }
+
+      # Bundled ClickHouse required by recent Langfuse chart versions.
+      clickhouse = {
+        auth = {
+          password = var.langfuse_postgres_password
+        }
+        persistence = {
+          storageClass = var.langfuse_postgres_storage_class != "" ? var.langfuse_postgres_storage_class : null
+        }
+      }
+
+      # Some chart versions use `redis`, others moved to `valkey`.
+      redis = {
+        auth = {
+          password = var.langfuse_postgres_password
+        }
+        master = {
+          persistence = {
+            storageClass = var.langfuse_postgres_storage_class != "" ? var.langfuse_postgres_storage_class : null
+          }
+        }
+      }
+
+      valkey = {
+        auth = {
+          password = var.langfuse_postgres_password
+        }
+        primary = {
+          persistence = {
+            storageClass = var.langfuse_postgres_storage_class != "" ? var.langfuse_postgres_storage_class : null
+          }
+        }
+      }
+
+      # Bundled S3-compatible storage for events/media.
+      s3 = {
+        auth = {
+          rootPassword = var.langfuse_postgres_password
+        }
+        persistence = {
+          storageClass = var.langfuse_postgres_storage_class != "" ? var.langfuse_postgres_storage_class : null
         }
       }
 
