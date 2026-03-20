@@ -50,10 +50,10 @@ output "private_route_table_id" {
 
 output "s3_gateway_endpoint_id" {
   description = "ID of the S3 Gateway Endpoint"
-  value       = var.enable_s3_gateway_endpoint ? aws_vpc_endpoint.s3[0].id : null
+  value       = try(aws_vpc_endpoint.s3[0].id, null)
 }
 
 output "s3_gateway_endpoint_prefix_list_id" {
   description = "Prefix list ID of the S3 Gateway Endpoint"
-  value       = var.enable_s3_gateway_endpoint ? aws_vpc_endpoint.s3[0].prefix_list_id : null
+  value       = try(aws_vpc_endpoint.s3[0].prefix_list_id, null)
 }

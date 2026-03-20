@@ -1,3 +1,5 @@
+data "aws_caller_identity" "current" {}
+
 locals {
   tags = merge(
     var.common_tags,
@@ -20,6 +22,10 @@ locals {
       }
     }
   }
+
+  # Avoid relying on the upstream module's session-context fallback, which can
+  # resolve to null for IAM users and break refresh/destroy operations.
+  kms_key_administrators = length(var.cluster_admin_principal_arns) > 0 ? var.cluster_admin_principal_arns : [data.aws_caller_identity.current.arn]
 }
 
 module "eks" {
@@ -32,6 +38,7 @@ module "eks" {
   cluster_endpoint_public_access           = var.eks_endpoint_public_access
   enable_cluster_creator_admin_permissions = true
   access_entries                           = local.cluster_admin_access_entries
+  kms_key_administrators                   = local.kms_key_administrators
 
   vpc_id     = var.vpc_id
   subnet_ids = var.subnet_ids
