@@ -39,16 +39,24 @@ run_terraform_apply \
 
 run_terraform_apply "infrastructure/lv-3-cluster-services/efs"
 run_terraform_apply "infrastructure/lv-3-cluster-services/karpenter"
-run_terraform_apply "infrastructure/lv-3-cluster-services/observability"
+run_terraform_apply "infrastructure/lv-3-cluster-services/observability/monitoring"
+run_terraform_apply "infrastructure/lv-3-cluster-services/observability/logging"
+run_terraform_apply "infrastructure/lv-3-cluster-services/observability/gpu-metrics"
+run_terraform_apply "infrastructure/lv-3-cluster-services/observability/neuron-monitor"
+
+run_terraform_apply "infrastructure/lv-4-inference-services/cert-manager"
+run_terraform_apply "infrastructure/lv-4-inference-services/kserve"
+run_terraform_apply "infrastructure/lv-4-inference-services/kuberay"
 
 if [[ -n "${NGC_API_KEY}" ]]; then
   run_terraform_apply \
-    "infrastructure/lv-4-inference-services" \
+    "infrastructure/lv-4-inference-services/nim-operator" \
     -var="ngc_api_key=${NGC_API_KEY}"
 else
-  run_terraform_apply \
-    "infrastructure/lv-4-inference-services" \
-    -var="install_nim_operator=false"
+  print_step "Skipping infrastructure/lv-4-inference-services/nim-operator because NGC_API_KEY is not set"
 fi
+
+run_terraform_apply "infrastructure/lv-5-app-observability/langfuse"
+run_terraform_apply "infrastructure/lv-3-cluster-services/observability/tracing"
 
 print_step "Rebuild complete"

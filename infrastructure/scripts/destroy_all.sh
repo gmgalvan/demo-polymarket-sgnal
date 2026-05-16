@@ -26,8 +26,16 @@ run_terraform_destroy() {
 print_step "Using AWS region ${AWS_REGION}"
 print_step "Using principal ${PRINCIPAL_ARN}"
 
-run_terraform_destroy "infrastructure/lv-4-inference-services"
-run_terraform_destroy "infrastructure/lv-3-cluster-services/observability"
+run_terraform_destroy "infrastructure/lv-4-inference-services/nim-operator" -var="ngc_api_key=placeholder"
+run_terraform_destroy "infrastructure/lv-4-inference-services/kuberay"
+run_terraform_destroy "infrastructure/lv-4-inference-services/kserve"
+run_terraform_destroy "infrastructure/lv-4-inference-services/cert-manager"
+run_terraform_destroy "infrastructure/lv-3-cluster-services/observability/tracing"
+run_terraform_destroy "infrastructure/lv-5-app-observability/langfuse"
+run_terraform_destroy "infrastructure/lv-3-cluster-services/observability/neuron-monitor"
+run_terraform_destroy "infrastructure/lv-3-cluster-services/observability/gpu-metrics"
+run_terraform_destroy "infrastructure/lv-3-cluster-services/observability/logging"
+run_terraform_destroy "infrastructure/lv-3-cluster-services/observability/monitoring"
 run_terraform_destroy "infrastructure/lv-3-cluster-services/karpenter"
 run_terraform_destroy "infrastructure/lv-3-cluster-services/efs"
 

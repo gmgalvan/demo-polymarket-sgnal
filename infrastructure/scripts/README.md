@@ -16,20 +16,36 @@ Applies all infrastructure stacks in dependency order:
 - `lv-2-core-compute/opensearch`
 - `lv-3-cluster-services/efs`
 - `lv-3-cluster-services/karpenter`
-- `lv-3-cluster-services/observability`
-- `lv-4-inference-services`
+- `lv-3-cluster-services/observability/monitoring`
+- `lv-3-cluster-services/observability/logging`
+- `lv-3-cluster-services/observability/gpu-metrics`
+- `lv-3-cluster-services/observability/neuron-monitor`
+- `lv-4-inference-services/cert-manager`
+- `lv-4-inference-services/kserve`
+- `lv-4-inference-services/kuberay`
+- `lv-4-inference-services/nim-operator` when `NGC_API_KEY` is set
+- `lv-5-app-observability/langfuse`
+- `lv-3-cluster-services/observability/tracing`
 
 It auto-detects the current AWS principal for:
 - `cluster_admin_principal_arns`
 - `master_user_arn`
 
-If `NGC_API_KEY` is not set, it installs `lv-4` with `install_nim_operator=false`.
+If `NGC_API_KEY` is not set, it skips `lv-4-inference-services/nim-operator`.
 
 ## `destroy_all.sh`
 
 Destroys all infrastructure stacks in reverse dependency order:
-- `lv-4-inference-services`
-- `lv-3-cluster-services/observability`
+- `lv-4-inference-services/nim-operator`
+- `lv-4-inference-services/kuberay`
+- `lv-4-inference-services/kserve`
+- `lv-4-inference-services/cert-manager`
+- `lv-3-cluster-services/observability/tracing`
+- `lv-5-app-observability/langfuse`
+- `lv-3-cluster-services/observability/neuron-monitor`
+- `lv-3-cluster-services/observability/gpu-metrics`
+- `lv-3-cluster-services/observability/logging`
+- `lv-3-cluster-services/observability/monitoring`
 - `lv-3-cluster-services/karpenter`
 - `lv-3-cluster-services/efs`
 - `lv-2-core-compute/opensearch`
@@ -132,6 +148,7 @@ bash infrastructure/scripts/destroy_all.sh
 - Update those values before running `create` if your environment differs.
 - `destroy` is destructive and asks for explicit confirmation.
 - `rebuild_all.sh` and `destroy_all.sh` use the current caller ARN by default.
+- `lv-3/observability`, `lv-4`, and `lv-5` are split into separate stacks under their respective directories.
 - Override values when needed:
 
 ```bash

@@ -1,16 +1,21 @@
-# Observability Stack
+# Platform Observability
 
 > **Status:** Terraform modules implemented. Deployment pending (requires EKS cluster from lv-2).
 
 ## Overview
 
-The observability stack provides three pillars of visibility into the GenAI platform:
+This repo now separates observability into two layers:
+
+- `lv-3-cluster-services/observability` for platform telemetry
+- `lv-5-app-observability/langfuse` for app/LLM-facing tracing
+
+Together they provide three pillars of visibility into the GenAI platform:
 
 1. **Metrics** — Prometheus + Grafana + hardware-specific exporters (DCGM, Neuron)
 2. **Logs** — Fluent Bit + Loki (centralized, queryable from Grafana)
-3. **Traces** — OpenTelemetry Collector + LangFuse (distributed tracing + LLM-specific observability)
+3. **Traces** — OpenTelemetry Collector + LangFuse (distributed tracing + app-level LLM observability)
 
-Everything runs on ARM (Graviton) core nodes except the hardware exporters, which run as DaemonSets on their respective accelerator nodes.
+The `lv-3` components run on ARM (Graviton) core nodes except the hardware exporters, which run as DaemonSets on their respective accelerator nodes.
 
 ---
 
@@ -266,6 +271,8 @@ The `spanmetrics` connector generates Prometheus metrics from trace spans, givin
 
 **Namespace:** `langfuse`
 
+**Layer:** `lv-5-app-observability/langfuse`
+
 LangFuse provides LLM-specific observability that generic metrics tools (Prometheus) cannot:
 
 - **Prompt/response tracing** — Full conversation history with metadata
@@ -379,41 +386,15 @@ Template variables: datasource (prometheus), loki_datasource.
 
 ```
 infrastructure/
-├── modules/observability/           # Reusable module
-│   ├── main.tf                      # kube-prometheus-stack + prometheus-adapter
-│   ├── dcgm_exporter.tf             # NVIDIA DCGM + GPU alerting rules
-│   ├── neuron_monitor.tf            # AWS Neuron Monitor + alerting rules
-│   ├── service_monitors.tf          # ServiceMonitors/PodMonitors + LLM alerting rules
-│   ├── logging.tf                   # Loki + Fluent Bit
-│   ├── otel_collector.tf            # OpenTelemetry Collector
-│   ├── langfuse.tf                  # LangFuse + PostgreSQL
-│   ├── dashboards.tf                # Grafana dashboard ConfigMaps
-│   ├── variables.tf                 # All input variables
-│   ├── outputs.tf                   # Endpoints for downstream consumption
-│   ├── GUARDRAILS.md                # Quality monitoring & guardrails options
-│   └── dashboards/
-│       ├── nvidia-gpu.json          # DCGM dashboard
-│       ├── aws-neuron.json          # Neuron dashboard
-│       ├── vllm-serving.json        # vLLM dashboard
-│       └── genai-overview.json      # Combined overview dashboard
 └── lv-3-cluster-services/
-    └── observability/               # Layer instantiation
-        ├── providers.tf             # S3 backend + AWS/Helm/kubectl providers
-        ├── main.tf                  # Module invocation
-        ├── variables.tf             # Layer variables (with defaults)
-        └── outputs.tf               # Exposed endpoints
-```
-
-**Feature flags:** Every component is independently toggleable:
-
-```hcl
-install_kube_prometheus_stack = true   # Prometheus + Grafana + Alertmanager
-install_prometheus_adapter    = true   # Custom metrics for HPA
-install_dcgm_exporter         = true   # NVIDIA GPU metrics
-install_neuron_monitor        = true   # AWS Inferentia/Trainium metrics
-install_loki_stack            = true   # Loki + Fluent Bit logging
-install_otel_collector        = true   # OpenTelemetry tracing
-install_langfuse              = true   # LLM-specific observability
+    └── observability/
+        ├── monitoring/              # Prometheus + Grafana + adapter + monitors
+        ├── logging/                 # Loki + Fluent Bit
+        ├── tracing/                 # OpenTelemetry Collector
+        ├── gpu-metrics/             # NVIDIA DCGM exporter + rules/dashboard
+        └── neuron-monitor/          # AWS Neuron monitor + rules/dashboard
+└── lv-5-app-observability/
+    └── langfuse/                    # App/LLM-facing observability
 ```
 
 ---
@@ -421,21 +402,46 @@ install_langfuse              = true   # LLM-specific observability
 ## Deployment
 
 ```bash
-cd infrastructure/lv-3-cluster-services/observability
+cd infrastructure/lv-3-cluster-services/observability/monitoring
 terraform init
-terraform plan
+terraform apply
+
+cd ../logging
+terraform init
+terraform apply
+
+cd ../../../lv-5-app-observability/langfuse
+terraform init
+terraform apply
+
+cd ../../lv-3-cluster-services/observability/tracing
+terraform init
+terraform apply
+
+cd ../gpu-metrics
+terraform init
+terraform apply
+
+cd ../neuron-monitor
+terraform init
 terraform apply
 ```
 
 **Prerequisites:** EKS cluster (lv-2), Karpenter (lv-3/karpenter), and EFS (lv-3/efs) must be deployed first.
 
-This repo's layer defaults assume the EFS stack created the `efs-sc` StorageClass for Prometheus, Loki, and LangFuse PostgreSQL persistence. If your cluster uses a different StorageClass, override:
+Apply `LangFuse` before `tracing` if you want the OpenTelemetry Collector to export to it on the first run.
+
+This repo's defaults assume the EFS stack created the `efs-sc` StorageClass for Prometheus, Loki, and LangFuse persistence. If your cluster uses a different StorageClass, override the relevant stack variables instead:
 
 ```bash
-terraform apply \
-  -var="prometheus_storage_class=<your-storage-class>" \
-  -var="loki_storage_class=<your-storage-class>" \
-  -var="langfuse_postgres_storage_class=<your-storage-class>"
+cd infrastructure/lv-3-cluster-services/observability/monitoring
+terraform apply -var="prometheus_storage_class=<your-storage-class>"
+
+cd ../logging
+terraform apply -var="loki_storage_class=<your-storage-class>"
+
+cd ../../../lv-5-app-observability/langfuse
+terraform apply -var="langfuse_postgres_storage_class=<your-storage-class>"
 ```
 
 **Access Grafana:**
