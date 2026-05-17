@@ -38,5 +38,5 @@ echo "Done. Image pushed:"
 echo "  ${IMAGE_URI}"
 echo
 echo "Next:"
-echo "  kubectl set image deployment/vllm-neuron-llama31-8b vllm-neuron=${IMAGE_URI} -n ai-example"
-echo "  kubectl scale deployment/vllm-neuron-llama31-8b --replicas=1 -n ai-example"
+echo "  kubectl set image deployment/vllm-neuron-llama31-8b vllm-neuron=${IMAGE_URI} -n demo-examples"
+echo "  kubectl scale deployment/vllm-neuron-llama31-8b --replicas=1 -n demo-examples"

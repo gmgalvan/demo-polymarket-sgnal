@@ -1,7 +1,3 @@
-provider "aws" {
-  region = var.aws_region
-}
-
 data "aws_ssm_parameter" "gpu_ami" {
   name = "/aws/service/deeplearning/ami/x86_64/oss-nvidia-driver-gpu-pytorch-2.6-amazon-linux-2023/latest/ami-id"
 }

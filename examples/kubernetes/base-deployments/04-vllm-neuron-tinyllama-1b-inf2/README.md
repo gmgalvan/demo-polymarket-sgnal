@@ -164,19 +164,19 @@ Response meaning:
 Create/update Kubernetes secret (recommended from local `.env`):
 
 ```bash
-cd /path/to/demo-polymarket-sgnal
+cd /path/to/repo
 HF_TOKEN=$(grep '^HUGGINGFACE_API_KEY=' .env | cut -d= -f2- | sed 's/^"//' | sed 's/"$//')
 
 kubectl create secret generic huggingface-token \
   --from-literal=token="${HF_TOKEN}" \
-  -n ai-example \
+  -n demo-examples \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
 If your approval is still pending, keep deployment paused:
 
 ```bash
-kubectl scale deployment/vllm-neuron-tinyllama-1b --replicas=0 -n ai-example
+kubectl scale deployment/vllm-neuron-tinyllama-1b --replicas=0 -n demo-examples
 ```
 
 ## 3) Deploy and enable the workload
@@ -188,23 +188,23 @@ export IMAGE_URI=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/vllm-neur
 
 kubectl apply -f kubernetes/examples/00-namespace.yaml
 kubectl apply -k kubernetes/examples/manual-inference-deployment/04-vllm-neuron-tinyllama-1b-inf2
-kubectl set image deployment/vllm-neuron-tinyllama-1b vllm-neuron="${IMAGE_URI}" -n ai-example
-kubectl scale deployment/vllm-neuron-tinyllama-1b --replicas=1 -n ai-example
-kubectl rollout status deployment/vllm-neuron-tinyllama-1b -n ai-example
+kubectl set image deployment/vllm-neuron-tinyllama-1b vllm-neuron="${IMAGE_URI}" -n demo-examples
+kubectl scale deployment/vllm-neuron-tinyllama-1b --replicas=1 -n demo-examples
+kubectl rollout status deployment/vllm-neuron-tinyllama-1b -n demo-examples
 ```
 
 ## 4) Verify
 
 ```bash
 kubectl get nodeclaims -w
-kubectl get pods -n ai-example -w
-kubectl logs -n ai-example deploy/vllm-neuron-tinyllama-1b -f
+kubectl get pods -n demo-examples -w
+kubectl logs -n demo-examples deploy/vllm-neuron-tinyllama-1b -f
 ```
 
 Port-forward:
 
 ```bash
-kubectl port-forward -n ai-example svc/vllm-neuron-tinyllama-1b 8000:8000
+kubectl port-forward -n demo-examples svc/vllm-neuron-tinyllama-1b 8000:8000
 ```
 
 In another terminal:
@@ -221,7 +221,7 @@ curl http://127.0.0.1:8000/v1/chat/completions \
 Instead of backgrounding multiple `curl` commands, use the included async load script:
 
 ```bash
-cd /path/to/demo-polymarket-sgnal/kubernetes/examples/manual-inference-deployment/04-vllm-neuron-tinyllama-1b-inf2
+cd /path/to/repo/examples/kubernetes/base-deployments/04-vllm-neuron-tinyllama-1b-inf2
 python3 load_test_async.py --requests 10 --concurrency 5
 ```
 
@@ -261,7 +261,7 @@ If pod is `ImagePullBackOff`:
 
 ```bash
 aws ecr list-images --repository-name vllm-neuron --region us-east-1
-kubectl describe pod -n ai-example -l app=vllm-neuron-tinyllama-1b
+kubectl describe pod -n demo-examples -l app=vllm-neuron-tinyllama-1b
 ```
 
 If pod is `CrashLoopBackOff` with:
@@ -271,20 +271,20 @@ If pod is `CrashLoopBackOff` with:
 then rebuild and push image with this repo's updated `Dockerfile.neuron` (pins `triton==3.0.0`), then redeploy:
 
 ```bash
-kubectl scale deployment/vllm-neuron-tinyllama-1b --replicas=0 -n ai-example
+kubectl scale deployment/vllm-neuron-tinyllama-1b --replicas=0 -n demo-examples
 
 cd kubernetes/examples/manual-inference-deployment/04-vllm-neuron-tinyllama-1b-inf2
 AWS_REGION=us-east-1 ECR_REPO=vllm-neuron IMAGE_TAG=latest VLLM_REF=v0.6.0 ./build-and-push-ecr-ec2.sh
 
 kubectl apply -k kubernetes/examples/manual-inference-deployment/04-vllm-neuron-tinyllama-1b-inf2
-kubectl scale deployment/vllm-neuron-tinyllama-1b --replicas=1 -n ai-example
-kubectl rollout status deployment/vllm-neuron-tinyllama-1b -n ai-example
+kubectl scale deployment/vllm-neuron-tinyllama-1b --replicas=1 -n demo-examples
+kubectl rollout status deployment/vllm-neuron-tinyllama-1b -n demo-examples
 ```
 
 If pod is `CrashLoopBackOff` with `401`/`403` against Hugging Face:
 
 ```bash
-kubectl logs -n ai-example deploy/vllm-neuron-tinyllama-1b --previous --tail=200
+kubectl logs -n demo-examples deploy/vllm-neuron-tinyllama-1b --previous --tail=200
 ```
 
 Fix path:
@@ -299,8 +299,8 @@ Fix path:
 After fixing access:
 
 ```bash
-kubectl rollout restart deployment/vllm-neuron-tinyllama-1b -n ai-example
-kubectl rollout status deployment/vllm-neuron-tinyllama-1b -n ai-example
+kubectl rollout restart deployment/vllm-neuron-tinyllama-1b -n demo-examples
+kubectl rollout status deployment/vllm-neuron-tinyllama-1b -n demo-examples
 ```
 
 If pod is `CrashLoopBackOff` with:
@@ -311,20 +311,20 @@ rebuild image with this repo's `Dockerfile.neuron` (pins compatible libs:
 `transformers==4.44.2`, `tokenizers==0.19.1`) and redeploy:
 
 ```bash
-kubectl scale deployment/vllm-neuron-tinyllama-1b --replicas=0 -n ai-example
+kubectl scale deployment/vllm-neuron-tinyllama-1b --replicas=0 -n demo-examples
 
 cd kubernetes/examples/manual-inference-deployment/04-vllm-neuron-tinyllama-1b-inf2
 AWS_REGION=us-east-1 ECR_REPO=vllm-neuron IMAGE_TAG=latest VLLM_REF=v0.6.0 ./build-and-push-ecr-ec2.sh
 
 kubectl apply -k kubernetes/examples/manual-inference-deployment/04-vllm-neuron-tinyllama-1b-inf2
-kubectl scale deployment/vllm-neuron-tinyllama-1b --replicas=1 -n ai-example
-kubectl rollout status deployment/vllm-neuron-tinyllama-1b -n ai-example
+kubectl scale deployment/vllm-neuron-tinyllama-1b --replicas=1 -n demo-examples
+kubectl rollout status deployment/vllm-neuron-tinyllama-1b -n demo-examples
 ```
 
 If pod restarts with `OOMKilled` (`exitCode: 137`) while loading model shards:
 
 ```bash
-kubectl get pod -n ai-example -l app=vllm-neuron-tinyllama-1b \
+kubectl get pod -n demo-examples -l app=vllm-neuron-tinyllama-1b \
   -o jsonpath='{.items[0].status.containerStatuses[0].lastState.terminated.reason}{" "}{.items[0].status.containerStatuses[0].lastState.terminated.exitCode}{"\n"}'
 ```
 
@@ -336,8 +336,8 @@ Then roll deployment:
 
 ```bash
 kubectl apply -k kubernetes/examples/manual-inference-deployment/04-vllm-neuron-tinyllama-1b-inf2
-kubectl rollout restart deployment/vllm-neuron-tinyllama-1b -n ai-example
-kubectl rollout status deployment/vllm-neuron-tinyllama-1b -n ai-example --timeout=45m
+kubectl rollout restart deployment/vllm-neuron-tinyllama-1b -n demo-examples
+kubectl rollout status deployment/vllm-neuron-tinyllama-1b -n demo-examples --timeout=45m
 ```
 
 If pod crashes with `ValueError: Model architectures ['...'] are not supported on Neuron`:
@@ -362,17 +362,17 @@ aws ec2 describe-instances --filters Name=tag:ManagedBy,Values=build-and-push-ec
 If pod is `Pending`:
 
 ```bash
-kubectl describe pod -n ai-example -l app=vllm-neuron-tinyllama-1b
+kubectl describe pod -n demo-examples -l app=vllm-neuron-tinyllama-1b
 kubectl get nodeclaims
 ```
 
 ## Cleanup
 
 ```bash
-kubectl scale deployment -n ai-example vllm-neuron-tinyllama-1b --replicas=0
+kubectl scale deployment -n demo-examples vllm-neuron-tinyllama-1b --replicas=0
 kubectl delete -k kubernetes/examples/manual-inference-deployment/04-vllm-neuron-tinyllama-1b-inf2
-kubectl delete secret huggingface-token -n ai-example --ignore-not-found
+kubectl delete secret huggingface-token -n demo-examples --ignore-not-found
 ```
 
 Note:
-- This cleanup does not delete namespace `ai-example` anymore (shared namespace).
+- This cleanup does not delete namespace `demo-examples` anymore (shared namespace).

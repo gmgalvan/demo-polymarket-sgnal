@@ -23,7 +23,7 @@ metadata:
     app.kubernetes.io/name: nim
     app.kubernetes.io/instance: llama3-8b-instruct
     app.kubernetes.io/component: inference
-    app.kubernetes.io/part-of: polymarket-signal
+    app.kubernetes.io/part-of: demo-examples
   annotations:
     prometheus.io/scrape: "true"
     prometheus.io/port: "8000"

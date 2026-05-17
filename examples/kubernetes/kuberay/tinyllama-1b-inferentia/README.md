@@ -99,16 +99,16 @@ Watch the deployment:
 
 ```bash
 # RayService status (takes up to 45 min on first deploy due to Neuron compilation)
-kubectl get rayservice tinyllama-neuron-ray -n ai-example -w
+kubectl get rayservice tinyllama-neuron-ray -n demo-examples -w
 
 # Head pod starts fast (ARM node)
-kubectl get pods -n ai-example -l app=tinyllama-neuron-ray-head -w
+kubectl get pods -n demo-examples -l app=tinyllama-neuron-ray-head -w
 
 # Worker pod (Karpenter provisions inf2.xlarge, then Neuron compiles the model)
-kubectl get pods -n ai-example -l app=tinyllama-neuron-ray-worker -w
+kubectl get pods -n demo-examples -l app=tinyllama-neuron-ray-worker -w
 
 # Follow Neuron compilation logs
-kubectl logs -n ai-example -l app=tinyllama-neuron-ray-worker -f
+kubectl logs -n demo-examples -l app=tinyllama-neuron-ray-worker -f
 # Look for: "neuronx_distributed: Compiled model saved to /tmp/neuron_cache/..."
 ```
 
@@ -124,7 +124,7 @@ kubectl get nodes -l workload=neuron
 Once `RayService` status shows `Running`:
 
 ```bash
-kubectl port-forward -n ai-example svc/tinyllama-neuron-ray-serve-svc 8000:8000
+kubectl port-forward -n demo-examples svc/tinyllama-neuron-ray-serve-svc 8000:8000
 ```
 
 In another terminal:
@@ -146,7 +146,7 @@ model_list:
   - model_name: tinyllama-1b-neuron-ray
     litellm_params:
       model: openai/tinyllama-1b-neuron
-      api_base: http://tinyllama-neuron-ray-serve-svc.ai-example.svc.cluster.local:8000/v1
+      api_base: http://tinyllama-neuron-ray-serve-svc.demo-examples.svc.cluster.local:8000/v1
       api_key: "none"
 ```
 

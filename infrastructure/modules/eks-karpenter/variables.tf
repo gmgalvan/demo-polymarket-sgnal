@@ -65,9 +65,9 @@ variable "l40s_instance_type" {
   type        = string
 }
 
-variable "inferentia_instance_type" {
-  description = "Default instance type for the Inferentia Karpenter node pool."
-  type        = string
+variable "inferentia_instance_types" {
+  description = "Allowed instance types for the Inferentia Karpenter node pool."
+  type        = list(string)
 }
 
 variable "install_nvidia_device_plugin" {

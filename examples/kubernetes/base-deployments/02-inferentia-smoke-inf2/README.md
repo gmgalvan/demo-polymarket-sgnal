@@ -14,8 +14,8 @@ It does not run an LLM. It verifies that:
 kubectl apply -f kubernetes/examples/00-namespace.yaml
 kubectl apply -k kubernetes/examples/manual-inference-deployment/02-inferentia-smoke-inf2
 kubectl get nodeclaims -w
-kubectl get pods -n ai-example -w
-kubectl rollout status deployment/neuron-smoke-inf2 -n ai-example
+kubectl get pods -n demo-examples -w
+kubectl rollout status deployment/neuron-smoke-inf2 -n demo-examples
 ```
 
 ## Karpenter checks
@@ -34,7 +34,7 @@ Notes:
 ## Test
 
 ```bash
-kubectl port-forward -n ai-example svc/neuron-smoke-inf2 5678:5678
+kubectl port-forward -n demo-examples svc/neuron-smoke-inf2 5678:5678
 ```
 
 In another terminal:
@@ -52,8 +52,8 @@ Inferentia lane is healthy
 ## Verify node placement
 
 ```bash
-kubectl get pods -n ai-example -o wide
-kubectl describe pod -n ai-example -l app=neuron-smoke-inf2
+kubectl get pods -n demo-examples -o wide
+kubectl describe pod -n demo-examples -l app=neuron-smoke-inf2
 ```
 
 You should see:
@@ -68,4 +68,4 @@ kubectl delete -k kubernetes/examples/manual-inference-deployment/02-inferentia-
 ```
 
 Note:
-- This cleanup does not delete namespace `ai-example` anymore (shared namespace).
+- This cleanup does not delete namespace `demo-examples` anymore (shared namespace).

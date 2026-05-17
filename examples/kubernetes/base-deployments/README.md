@@ -12,7 +12,7 @@ These examples are applied **one at a time** with `kubectl` — they are not par
 | 2 | [03-vllm-qwen25-3b-gpu/](03-vllm-qwen25-3b-gpu/) | Deploy vLLM + Qwen2.5-3B on GPU lane | GPU node |
 | 3 | [04-vllm-neuron-tinyllama-1b-inf2/](04-vllm-neuron-tinyllama-1b-inf2/) | Deploy vLLM + TinyLlama on Inferentia lane | inf2 node |
 
-All examples share the `ai-example` namespace. Apply it once before any example:
+All examples share the `demo-examples` namespace. Apply it once before any example:
 
 ```bash
 kubectl apply -f kubernetes/examples/00-namespace.yaml
@@ -46,6 +46,6 @@ kubectl delete -k kubernetes/examples/manual-inference-deployment/03-vllm-qwen25
 kubectl delete -k kubernetes/examples/manual-inference-deployment/02-inferentia-smoke-inf2
 
 # Inferentia LLM
-kubectl scale deployment -n ai-example vllm-neuron-tinyllama-1b --replicas=0
+kubectl scale deployment -n demo-examples vllm-neuron-tinyllama-1b --replicas=0
 kubectl delete -k kubernetes/examples/manual-inference-deployment/04-vllm-neuron-tinyllama-1b-inf2
 ```

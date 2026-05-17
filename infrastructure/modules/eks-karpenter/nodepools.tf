@@ -247,7 +247,7 @@ resource "kubectl_manifest" "node_pool_arm" {
         # Consolidate when the node is empty OR underutilized (bin-packing)
         consolidationPolicy = "WhenEmptyOrUnderutilized"
         # Wait 5 min before terminating an underutilized node to avoid flapping
-        consolidateAfter    = "5m"
+        consolidateAfter = "5m"
       }
     }
   })
@@ -376,10 +376,10 @@ resource "kubectl_manifest" "node_pool_inferentia" {
               values   = ["amd64"]
             },
             {
-              # Inferentia instance type — e.g. inf2.xlarge (2 NeuronCores, 32GB HBM)
+              # Inferentia instance types allowed for this pool.
               key      = "node.kubernetes.io/instance-type"
               operator = "In"
-              values   = [var.inferentia_instance_type]
+              values   = var.inferentia_instance_types
             },
             {
               key      = "karpenter.sh/capacity-type"
@@ -393,7 +393,7 @@ resource "kubectl_manifest" "node_pool_inferentia" {
         consolidationPolicy = "WhenEmptyOrUnderutilized"
         # 10 min before consolidating — Neuron models have a long cold-start
         # due to JIT compilation when loading the .neff into the accelerator.
-        consolidateAfter    = "10m"
+        consolidateAfter = "10m"
       }
     }
   })

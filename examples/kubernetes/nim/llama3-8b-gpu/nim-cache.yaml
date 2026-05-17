@@ -13,10 +13,10 @@
 #
 # Prerequisites:
 #   - NIM Operator installed (lv-4-inference-services)
-#   - Secret ngc-api-secret exists in namespace ai-example
+#   - Secret ngc-api-secret exists in namespace demo-examples
 #     kubectl create secret generic ngc-api-secret \
 #       --from-literal=NGC_API_KEY=nvapi-xxxx \
-#       -n ai-example
+#       -n demo-examples
 apiVersion: apps.nvidia.com/v1alpha1
 kind: NIMCache
 metadata:

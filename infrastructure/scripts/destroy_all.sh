@@ -30,12 +30,12 @@ run_terraform_destroy "infrastructure/lv-4-inference-services/nim-operator" -var
 run_terraform_destroy "infrastructure/lv-4-inference-services/kuberay"
 run_terraform_destroy "infrastructure/lv-4-inference-services/kserve"
 run_terraform_destroy "infrastructure/lv-4-inference-services/cert-manager"
-run_terraform_destroy "infrastructure/lv-3-cluster-services/observability/tracing"
-run_terraform_destroy "infrastructure/lv-5-app-observability/langfuse"
-run_terraform_destroy "infrastructure/lv-3-cluster-services/observability/neuron-monitor"
-run_terraform_destroy "infrastructure/lv-3-cluster-services/observability/gpu-metrics"
-run_terraform_destroy "infrastructure/lv-3-cluster-services/observability/logging"
-run_terraform_destroy "infrastructure/lv-3-cluster-services/observability/monitoring"
+run_terraform_destroy "infrastructure/lv-3-cluster-services/platform-observability/03-tracing"
+run_terraform_destroy "infrastructure/lv-5-app-observability/01-langfuse"
+run_terraform_destroy "infrastructure/lv-3-cluster-services/platform-observability/05-neuron-monitor"
+run_terraform_destroy "infrastructure/lv-3-cluster-services/platform-observability/04-gpu-metrics"
+run_terraform_destroy "infrastructure/lv-3-cluster-services/platform-observability/02-logging"
+run_terraform_destroy "infrastructure/lv-3-cluster-services/platform-observability/01-monitoring"
 run_terraform_destroy "infrastructure/lv-3-cluster-services/karpenter"
 run_terraform_destroy "infrastructure/lv-3-cluster-services/efs"
 
@@ -47,6 +47,7 @@ run_terraform_destroy \
   "infrastructure/lv-2-core-compute/eks" \
   -var="cluster_admin_principal_arns=[\"${PRINCIPAL_ARN}\"]"
 
+run_terraform_destroy "infrastructure/lv-1-security-and-config/secrets"
 run_terraform_destroy "infrastructure/lv-0-networking/vpc"
 
 print_step "Destroy complete"

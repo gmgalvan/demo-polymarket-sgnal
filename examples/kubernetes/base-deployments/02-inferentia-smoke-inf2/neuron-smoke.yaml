@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/name: neuron-smoke
     app.kubernetes.io/instance: neuron-smoke-inf2
     app.kubernetes.io/component: smoke-test
-    app.kubernetes.io/part-of: polymarket-signal
+    app.kubernetes.io/part-of: demo-examples
 spec:
   replicas: 1
   strategy:
@@ -22,7 +22,7 @@ spec:
         app.kubernetes.io/name: neuron-smoke
         app.kubernetes.io/instance: neuron-smoke-inf2
         app.kubernetes.io/component: smoke-test
-        app.kubernetes.io/part-of: polymarket-signal
+        app.kubernetes.io/part-of: demo-examples
     spec:
       nodeSelector:
         workload: neuron
@@ -76,7 +76,7 @@ metadata:
     app.kubernetes.io/name: neuron-smoke
     app.kubernetes.io/instance: neuron-smoke-inf2
     app.kubernetes.io/component: smoke-test
-    app.kubernetes.io/part-of: polymarket-signal
+    app.kubernetes.io/part-of: demo-examples
 spec:
   selector:
     app: neuron-smoke-inf2

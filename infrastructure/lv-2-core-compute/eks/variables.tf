@@ -118,6 +118,12 @@ variable "inferentia_instance_type" {
   default     = "inf2.xlarge"
 }
 
+variable "inferentia_karpenter_instance_types" {
+  description = "Allowed Inferentia EC2 instance types for the Karpenter Neuron node pool."
+  type        = list(string)
+  default     = ["inf2.xlarge", "inf2.8xlarge"]
+}
+
 variable "inferentia_node_min_size" {
   description = "Minimum nodes for the Inferentia managed node group."
   type        = number

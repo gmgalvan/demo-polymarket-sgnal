@@ -29,7 +29,7 @@ metadata:
     app.kubernetes.io/name: vllm
     app.kubernetes.io/instance: tinyllama-1b-inferentia
     app.kubernetes.io/component: inference
-    app.kubernetes.io/part-of: polymarket-signal
+    app.kubernetes.io/part-of: demo-examples
   annotations:
     # RawDeployment mode: KServe creates a Deployment, not a Knative Service.
     # Remove this annotation if Knative is installed and you want scale-to-zero.

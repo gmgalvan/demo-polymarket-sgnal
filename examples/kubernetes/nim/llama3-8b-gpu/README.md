@@ -28,7 +28,7 @@ kubectl get crd | grep nvidia
 ```bash
 kubectl create secret generic ngc-api-secret \
   --from-literal=NGC_API_KEY=nvapi-xxxx... \
-  -n ai-example \
+  -n demo-examples \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
@@ -64,22 +64,22 @@ kubectl apply -k kubernetes/examples/nim-operator/llama3-8b-gpu
 Watch the cache download progress:
 
 ```bash
-kubectl get nimcache -n ai-example -w
+kubectl get nimcache -n demo-examples -w
 # STATUS transitions: Initializing → Downloading → Ready
-kubectl logs -n ai-example -l nim-cache=llama3-8b-instruct-cache -f
+kubectl logs -n demo-examples -l nim-cache=llama3-8b-instruct-cache -f
 ```
 
 Once `NIMCache` is Ready, the `NIMService` pod starts automatically:
 
 ```bash
-kubectl get nimservice -n ai-example
-kubectl get pods -n ai-example -l app=llama3-8b-instruct -w
+kubectl get nimservice -n demo-examples
+kubectl get pods -n demo-examples -l app=llama3-8b-instruct -w
 ```
 
 ## Verify
 
 ```bash
-kubectl port-forward -n ai-example svc/llama3-8b-instruct 8000:8000
+kubectl port-forward -n demo-examples svc/llama3-8b-instruct 8000:8000
 ```
 
 In another terminal:
@@ -115,7 +115,7 @@ Expected instance: `g6.xlarge` (1x L40S, 24 GB VRAM) or as configured in
 
 ```bash
 kubectl delete -k kubernetes/examples/nim-operator/llama3-8b-gpu
-kubectl delete secret ngc-api-secret -n ai-example --ignore-not-found
+kubectl delete secret ngc-api-secret -n demo-examples --ignore-not-found
 ```
 
 The PVC created by `NIMCache` is deleted automatically when the NIMCache resource

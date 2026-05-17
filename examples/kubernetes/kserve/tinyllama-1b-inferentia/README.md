@@ -73,7 +73,7 @@ kubectl apply -k kubernetes/examples/kserve/tinyllama-1b-inferentia
 Watch the InferenceService status:
 
 ```bash
-kubectl get inferenceservice -n ai-example tinyllama-1b-inferentia -w
+kubectl get inferenceservice -n demo-examples tinyllama-1b-inferentia -w
 # STATUS transitions: Unknown → False (pod starting) → True (ready)
 ```
 
@@ -84,8 +84,8 @@ Watch pod and Karpenter node:
 
 ```bash
 kubectl get nodeclaims -w                                       # Karpenter provisions inf2 node
-kubectl get pods -n ai-example -l serving.kserve.io/inferenceservice=tinyllama-1b-inferentia -w
-kubectl logs -n ai-example -l serving.kserve.io/inferenceservice=tinyllama-1b-inferentia -f
+kubectl get pods -n demo-examples -l serving.kserve.io/inferenceservice=tinyllama-1b-inferentia -w
+kubectl logs -n demo-examples -l serving.kserve.io/inferenceservice=tinyllama-1b-inferentia -f
 ```
 
 Neuron compilation takes 5–15 min on first start. `startupProbe` allows up to 45 min
@@ -96,13 +96,13 @@ Neuron compilation takes 5–15 min on first start. `startupProbe` allows up to 
 KServe creates a Service named `<inferenceservice-name>-predictor`:
 
 ```bash
-kubectl get svc -n ai-example | grep tinyllama
+kubectl get svc -n demo-examples | grep tinyllama
 ```
 
 Port-forward:
 
 ```bash
-kubectl port-forward -n ai-example svc/tinyllama-1b-inferentia-predictor 8080:80
+kubectl port-forward -n demo-examples svc/tinyllama-1b-inferentia-predictor 8080:80
 ```
 
 In another terminal:
@@ -137,7 +137,7 @@ which uses `8000`. The `--port=8080` arg is passed to vLLM to match this convent
 
 ```bash
 kubectl delete -k kubernetes/examples/kserve/tinyllama-1b-inferentia
-kubectl delete secret huggingface-token -n ai-example --ignore-not-found
+kubectl delete secret huggingface-token -n demo-examples --ignore-not-found
 ```
 
 Karpenter will terminate the inf2 node after `consolidateAfter: 10m` with no pods scheduled.

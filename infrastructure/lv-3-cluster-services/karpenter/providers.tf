@@ -1,4 +1,21 @@
 terraform {
+  required_version = ">= 1.5.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+    helm = {
+      source  = "hashicorp/helm"
+      version = ">= 2.13"
+    }
+    kubectl = {
+      source  = "gavinbunney/kubectl"
+      version = ">= 1.14.0"
+    }
+  }
+
   backend "s3" {
     bucket       = "352-demo-dev-s3b-tfstate-backend"
     key          = "dev/lv-3-cluster-services/karpenter/terraform.tfstate"

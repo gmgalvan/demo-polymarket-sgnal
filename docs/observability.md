@@ -6,8 +6,8 @@
 
 This repo now separates observability into two layers:
 
-- `lv-3-cluster-services/observability` for platform telemetry
-- `lv-5-app-observability/langfuse` for app/LLM-facing tracing
+- `lv-3-cluster-services/platform-observability` for platform telemetry
+- `lv-5-app-observability/01-langfuse` for app/LLM-facing tracing
 
 Together they provide three pillars of visibility into the GenAI platform:
 
@@ -177,7 +177,7 @@ Each component that exposes `/metrics` gets a dedicated monitor CR so Prometheus
 | vLLM (legacy) | PodMonitor | `app` exists, `app.kubernetes.io/name` absent | `http` (8000) | Pods with old-style `app: vllm-*` labels |
 | LiteLLM | ServiceMonitor | `app.kubernetes.io/name=litellm` | `http` (4000) | LiteLLM gateway |
 | KServe | PodMonitor | `serving.kserve.io/inferenceservice` Exists | `http1` (8080) | KServe InferenceService pods |
-| MCP Servers | PodMonitor | `app.kubernetes.io/part-of=polymarket-signal` + `component=mcp-server` | `http` | Polymarket, TA, Web Search |
+| MCP Servers | PodMonitor | `app.kubernetes.io/component=mcp-server` | `http` | MCP server workloads |
 | Fluent Bit | ServiceMonitor | (auto from Helm) | 2020 | Log collector health |
 | OTel Collector | ServiceMonitor | (auto from Helm) | 8889 | Span metrics |
 
@@ -188,7 +188,7 @@ labels:
   app.kubernetes.io/name: vllm          # ServiceMonitor matches this
   app.kubernetes.io/instance: vllm-gpu-qwen25
   app.kubernetes.io/component: inference
-  app.kubernetes.io/part-of: polymarket-signal
+  app.kubernetes.io/part-of: demo-examples
 annotations:
   prometheus.io/scrape: "true"
   prometheus.io/port: "8000"
@@ -196,6 +196,58 @@ annotations:
 ```
 
 All existing manifests in `kubernetes/examples/` have been updated with these labels.
+
+---
+
+## Quick Validation Queries
+
+Once `01-monitoring` and `02-logging` are deployed, you can validate the stack
+from Grafana Explore without opening Prometheus or Loki directly.
+
+### Prometheus
+
+Use Grafana `Explore` with the `Prometheus` datasource and switch to `Code`
+mode.
+
+Check that the Inferentia smoke pod is visible on the expected node:
+
+```promql
+kube_pod_info{namespace="demo-examples", node="ip-10-40-7-189.ec2.internal"}
+```
+
+Check pod phases inside the demo namespace:
+
+```promql
+kube_pod_status_phase{namespace="demo-examples"}
+```
+
+Check container readiness inside the demo namespace:
+
+```promql
+kube_pod_container_status_ready{namespace="demo-examples"}
+```
+
+Check node conditions for the Inferentia node:
+
+```promql
+kube_node_status_condition{node="ip-10-40-7-189.ec2.internal"}
+```
+
+### Loki
+
+Use Grafana `Explore` with the `Loki` datasource.
+
+Check logs for the Inferentia smoke pod:
+
+```logql
+{namespace="demo-examples", pod=~"neuron-smoke-inf2.*"}
+```
+
+If you want only the application lines from the smoke container:
+
+```logql
+{namespace="demo-examples", pod=~"neuron-smoke-inf2.*", container="neuron-smoke"}
+```
 
 ---
 
@@ -271,7 +323,7 @@ The `spanmetrics` connector generates Prometheus metrics from trace spans, givin
 
 **Namespace:** `langfuse`
 
-**Layer:** `lv-5-app-observability/langfuse`
+**Layer:** `lv-5-app-observability/01-langfuse`
 
 LangFuse provides LLM-specific observability that generic metrics tools (Prometheus) cannot:
 
@@ -387,14 +439,14 @@ Template variables: datasource (prometheus), loki_datasource.
 ```
 infrastructure/
 └── lv-3-cluster-services/
-    └── observability/
-        ├── monitoring/              # Prometheus + Grafana + adapter + monitors
-        ├── logging/                 # Loki + Fluent Bit
-        ├── tracing/                 # OpenTelemetry Collector
-        ├── gpu-metrics/             # NVIDIA DCGM exporter + rules/dashboard
-        └── neuron-monitor/          # AWS Neuron monitor + rules/dashboard
+    └── platform-observability/
+        ├── 01-monitoring/           # Prometheus + Grafana + adapter + monitors
+        ├── 02-logging/              # Loki + Fluent Bit
+        ├── 03-tracing/              # OpenTelemetry Collector
+        ├── 04-gpu-metrics/          # NVIDIA DCGM exporter + rules/dashboard
+        └── 05-neuron-monitor/       # AWS Neuron monitor + rules/dashboard
 └── lv-5-app-observability/
-    └── langfuse/                    # App/LLM-facing observability
+    └── 01-langfuse/                 # App/LLM-facing observability
 ```
 
 ---
@@ -402,27 +454,27 @@ infrastructure/
 ## Deployment
 
 ```bash
-cd infrastructure/lv-3-cluster-services/observability/monitoring
+cd infrastructure/lv-3-cluster-services/platform-observability/01-monitoring
 terraform init
 terraform apply
 
-cd ../logging
+cd ../02-logging
 terraform init
 terraform apply
 
-cd ../../../lv-5-app-observability/langfuse
+cd ../../../lv-5-app-observability/01-langfuse
 terraform init
 terraform apply
 
-cd ../../lv-3-cluster-services/observability/tracing
+cd ../../lv-3-cluster-services/platform-observability/03-tracing
 terraform init
 terraform apply
 
-cd ../gpu-metrics
+cd ../04-gpu-metrics
 terraform init
 terraform apply
 
-cd ../neuron-monitor
+cd ../05-neuron-monitor
 terraform init
 terraform apply
 ```
@@ -434,13 +486,13 @@ Apply `LangFuse` before `tracing` if you want the OpenTelemetry Collector to exp
 This repo's defaults assume the EFS stack created the `efs-sc` StorageClass for Prometheus, Loki, and LangFuse persistence. If your cluster uses a different StorageClass, override the relevant stack variables instead:
 
 ```bash
-cd infrastructure/lv-3-cluster-services/observability/monitoring
+cd infrastructure/lv-3-cluster-services/platform-observability/01-monitoring
 terraform apply -var="prometheus_storage_class=<your-storage-class>"
 
-cd ../logging
+cd ../02-logging
 terraform apply -var="loki_storage_class=<your-storage-class>"
 
-cd ../../../lv-5-app-observability/langfuse
+cd ../../../lv-5-app-observability/01-langfuse
 terraform apply -var="langfuse_postgres_storage_class=<your-storage-class>"
 ```
 

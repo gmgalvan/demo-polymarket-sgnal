@@ -101,7 +101,7 @@ metadata:
     app.kubernetes.io/name: vllm
     app.kubernetes.io/instance: tinyllama-neuron-ray
     app.kubernetes.io/component: inference
-    app.kubernetes.io/part-of: polymarket-signal
+    app.kubernetes.io/part-of: demo-examples
   annotations:
     prometheus.io/scrape: "true"
     prometheus.io/port: "8080"

@@ -28,6 +28,7 @@ print_step "Using AWS region ${AWS_REGION}"
 print_step "Using principal ${PRINCIPAL_ARN}"
 
 run_terraform_apply "infrastructure/lv-0-networking/vpc"
+run_terraform_apply "infrastructure/lv-1-security-and-config/secrets"
 
 run_terraform_apply \
   "infrastructure/lv-2-core-compute/eks" \
@@ -39,10 +40,10 @@ run_terraform_apply \
 
 run_terraform_apply "infrastructure/lv-3-cluster-services/efs"
 run_terraform_apply "infrastructure/lv-3-cluster-services/karpenter"
-run_terraform_apply "infrastructure/lv-3-cluster-services/observability/monitoring"
-run_terraform_apply "infrastructure/lv-3-cluster-services/observability/logging"
-run_terraform_apply "infrastructure/lv-3-cluster-services/observability/gpu-metrics"
-run_terraform_apply "infrastructure/lv-3-cluster-services/observability/neuron-monitor"
+run_terraform_apply "infrastructure/lv-3-cluster-services/platform-observability/01-monitoring"
+run_terraform_apply "infrastructure/lv-3-cluster-services/platform-observability/02-logging"
+run_terraform_apply "infrastructure/lv-3-cluster-services/platform-observability/04-gpu-metrics"
+run_terraform_apply "infrastructure/lv-3-cluster-services/platform-observability/05-neuron-monitor"
 
 run_terraform_apply "infrastructure/lv-4-inference-services/cert-manager"
 run_terraform_apply "infrastructure/lv-4-inference-services/kserve"
@@ -56,7 +57,7 @@ else
   print_step "Skipping infrastructure/lv-4-inference-services/nim-operator because NGC_API_KEY is not set"
 fi
 
-run_terraform_apply "infrastructure/lv-5-app-observability/langfuse"
-run_terraform_apply "infrastructure/lv-3-cluster-services/observability/tracing"
+run_terraform_apply "infrastructure/lv-5-app-observability/01-langfuse"
+run_terraform_apply "infrastructure/lv-3-cluster-services/platform-observability/03-tracing"
 
 print_step "Rebuild complete"

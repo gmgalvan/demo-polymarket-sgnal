@@ -322,5 +322,5 @@ echo "Done. Image pushed (validate with):"
 echo "  aws ecr list-images --repository-name ${ECR_REPO} --region ${AWS_REGION}"
 echo
 echo "If image exists, deploy with:"
-echo "  kubectl set image deployment/vllm-neuron-llama31-8b vllm-neuron=${IMAGE_URI} -n ai-example"
-echo "  kubectl scale deployment/vllm-neuron-llama31-8b --replicas=1 -n ai-example"
+echo "  kubectl set image deployment/vllm-neuron-llama31-8b vllm-neuron=${IMAGE_URI} -n demo-examples"
+echo "  kubectl scale deployment/vllm-neuron-llama31-8b --replicas=1 -n demo-examples"

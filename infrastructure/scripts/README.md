@@ -12,20 +12,21 @@ Creates, validates, checks, and destroys Terraform remote backend resources:
 
 Applies all infrastructure stacks in dependency order:
 - `lv-0-networking/vpc`
+- `lv-1-security-and-config/secrets`
 - `lv-2-core-compute/eks`
 - `lv-2-core-compute/opensearch`
 - `lv-3-cluster-services/efs`
 - `lv-3-cluster-services/karpenter`
-- `lv-3-cluster-services/observability/monitoring`
-- `lv-3-cluster-services/observability/logging`
-- `lv-3-cluster-services/observability/gpu-metrics`
-- `lv-3-cluster-services/observability/neuron-monitor`
+- `lv-3-cluster-services/platform-observability/01-monitoring`
+- `lv-3-cluster-services/platform-observability/02-logging`
+- `lv-3-cluster-services/platform-observability/04-gpu-metrics`
+- `lv-3-cluster-services/platform-observability/05-neuron-monitor`
 - `lv-4-inference-services/cert-manager`
 - `lv-4-inference-services/kserve`
 - `lv-4-inference-services/kuberay`
 - `lv-4-inference-services/nim-operator` when `NGC_API_KEY` is set
-- `lv-5-app-observability/langfuse`
-- `lv-3-cluster-services/observability/tracing`
+- `lv-5-app-observability/01-langfuse`
+- `lv-3-cluster-services/platform-observability/03-tracing`
 
 It auto-detects the current AWS principal for:
 - `cluster_admin_principal_arns`
@@ -40,16 +41,17 @@ Destroys all infrastructure stacks in reverse dependency order:
 - `lv-4-inference-services/kuberay`
 - `lv-4-inference-services/kserve`
 - `lv-4-inference-services/cert-manager`
-- `lv-3-cluster-services/observability/tracing`
-- `lv-5-app-observability/langfuse`
-- `lv-3-cluster-services/observability/neuron-monitor`
-- `lv-3-cluster-services/observability/gpu-metrics`
-- `lv-3-cluster-services/observability/logging`
-- `lv-3-cluster-services/observability/monitoring`
+- `lv-3-cluster-services/platform-observability/03-tracing`
+- `lv-5-app-observability/01-langfuse`
+- `lv-3-cluster-services/platform-observability/05-neuron-monitor`
+- `lv-3-cluster-services/platform-observability/04-gpu-metrics`
+- `lv-3-cluster-services/platform-observability/02-logging`
+- `lv-3-cluster-services/platform-observability/01-monitoring`
 - `lv-3-cluster-services/karpenter`
 - `lv-3-cluster-services/efs`
 - `lv-2-core-compute/opensearch`
 - `lv-2-core-compute/eks`
+- `lv-1-security-and-config/secrets`
 - `lv-0-networking/vpc`
 
 ## Prerequisites

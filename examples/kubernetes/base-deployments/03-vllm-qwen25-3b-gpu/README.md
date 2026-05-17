@@ -4,7 +4,7 @@ This sample deploys `Qwen/Qwen2.5-3B-Instruct` on the GPU lane with `vLLM` and e
 
 ## Deploys
 
-- Namespace: `ai-example`
+- Namespace: `demo-examples`
 - Deployment: `vllm-gpu-qwen25`
 - Service: `vllm-gpu-qwen25`
 - Served model name: `qwen25-3b-gpu`
@@ -15,8 +15,8 @@ This sample deploys `Qwen/Qwen2.5-3B-Instruct` on the GPU lane with `vLLM` and e
 kubectl apply -f kubernetes/examples/00-namespace.yaml
 kubectl apply -k kubernetes/examples/manual-inference-deployment/03-vllm-qwen25-3b-gpu
 kubectl get nodeclaims -w
-kubectl get pods -n ai-example -w
-kubectl rollout status deployment/vllm-gpu-qwen25 -n ai-example
+kubectl get pods -n demo-examples -w
+kubectl rollout status deployment/vllm-gpu-qwen25 -n demo-examples
 ```
 
 ## Karpenter checks
@@ -35,7 +35,7 @@ Notes:
 ## Test
 
 ```bash
-kubectl port-forward -n ai-example svc/vllm-gpu-qwen25 8000:8000
+kubectl port-forward -n demo-examples svc/vllm-gpu-qwen25 8000:8000
 ```
 
 In another terminal:
@@ -54,4 +54,4 @@ kubectl delete -k kubernetes/examples/manual-inference-deployment/03-vllm-qwen25
 ```
 
 Note:
-- This cleanup does not delete namespace `ai-example` anymore (shared namespace).
+- This cleanup does not delete namespace `demo-examples` anymore (shared namespace).

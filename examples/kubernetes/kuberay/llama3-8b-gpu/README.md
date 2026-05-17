@@ -75,7 +75,7 @@ Llama 3 requires accepting the license on HuggingFace first, then:
 ```bash
 kubectl create secret generic hf-token \
   --from-literal=token=hf_xxxx... \
-  -n ai-example
+  -n demo-examples
 ```
 
 Uncomment the `HF_TOKEN` env var in `ray-service.yaml` to use it.
@@ -91,13 +91,13 @@ Watch the cluster come up:
 
 ```bash
 # RayService transitions: WaitForServeDeploymentReady → Running
-kubectl get rayservice llama3-8b-ray -n ai-example -w
+kubectl get rayservice llama3-8b-ray -n demo-examples -w
 
 # Watch the head pod start first (ARM node, fast)
-kubectl get pods -n ai-example -l app=llama3-8b-ray-head -w
+kubectl get pods -n demo-examples -l app=llama3-8b-ray-head -w
 
 # Then the GPU worker pod (Karpenter provisions a g6.xlarge ~2-3 min)
-kubectl get pods -n ai-example -l app=llama3-8b-ray-worker -w
+kubectl get pods -n demo-examples -l app=llama3-8b-ray-worker -w
 
 # Karpenter node provisioning
 kubectl get nodeclaims -w
@@ -107,14 +107,14 @@ kubectl get nodes -l workload=gpu
 Ray Dashboard (useful for debugging serve app status):
 
 ```bash
-kubectl port-forward -n ai-example svc/llama3-8b-ray-head-svc 8265:8265
+kubectl port-forward -n demo-examples svc/llama3-8b-ray-head-svc 8265:8265
 # Open http://localhost:8265
 ```
 
 ## Verify
 
 ```bash
-kubectl port-forward -n ai-example svc/llama3-8b-ray-serve-svc 8000:8000
+kubectl port-forward -n demo-examples svc/llama3-8b-ray-serve-svc 8000:8000
 ```
 
 In another terminal:
@@ -141,7 +141,7 @@ model_list:
   - model_name: llama-3.1-8b-ray
     litellm_params:
       model: openai/llama-3.1-8b-instruct
-      api_base: http://llama3-8b-ray-serve-svc.ai-example.svc.cluster.local:8000/v1
+      api_base: http://llama3-8b-ray-serve-svc.demo-examples.svc.cluster.local:8000/v1
       api_key: "none"
 ```
 
@@ -164,7 +164,7 @@ done
 wait
 
 # Watch replicas scale up
-kubectl get rayservice llama3-8b-ray -n ai-example -w
+kubectl get rayservice llama3-8b-ray -n demo-examples -w
 kubectl get nodes -l workload=gpu   # more GPU nodes provisioned
 ```
 

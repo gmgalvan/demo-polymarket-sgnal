@@ -63,6 +63,11 @@ output "inferentia_instance_type" {
   value       = var.inferentia_instance_type
 }
 
+output "inferentia_karpenter_instance_types" {
+  description = "Allowed Inferentia instance types for the Karpenter Neuron node pool."
+  value       = var.inferentia_karpenter_instance_types
+}
+
 output "core_node_instance_type" {
   description = "Configured instance type for the ARM/core node group."
   value       = var.core_node_instance_type
