@@ -12,8 +12,8 @@ This sample deploys `Qwen/Qwen2.5-3B-Instruct` on the GPU lane with `vLLM` and e
 ## Apply
 
 ```bash
-kubectl apply -f kubernetes/examples/00-namespace.yaml
-kubectl apply -k kubernetes/examples/manual-inference-deployment/03-vllm-qwen25-3b-gpu
+kubectl apply -f examples/kubernetes/00-namespace.yaml
+kubectl apply -k examples/kubernetes/base-deployments/03-vllm-qwen25-3b-gpu
 kubectl get nodeclaims -w
 kubectl get pods -n demo-examples -w
 kubectl rollout status deployment/vllm-gpu-qwen25 -n demo-examples
@@ -42,15 +42,21 @@ In another terminal:
 
 ```bash
 curl http://127.0.0.1:8000/health
+./examples/kubernetes/base-deployments/03-vllm-qwen25-3b-gpu/test-chat.sh
+```
+
+If you prefer the raw `curl`, use:
+
+```bash
 curl http://127.0.0.1:8000/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -d @kubernetes/examples/manual-inference-deployment/03-vllm-qwen25-3b-gpu/request.chat-test.json
+  -d @examples/kubernetes/base-deployments/03-vllm-qwen25-3b-gpu/request.chat-test.json
 ```
 
 ## Cleanup
 
 ```bash
-kubectl delete -k kubernetes/examples/manual-inference-deployment/03-vllm-qwen25-3b-gpu
+kubectl delete -k examples/kubernetes/base-deployments/03-vllm-qwen25-3b-gpu
 ```
 
 Note:

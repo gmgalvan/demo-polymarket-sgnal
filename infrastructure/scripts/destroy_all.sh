@@ -36,6 +36,8 @@ run_terraform_destroy "infrastructure/lv-3-cluster-services/platform-observabili
 run_terraform_destroy "infrastructure/lv-3-cluster-services/platform-observability/04-gpu-metrics"
 run_terraform_destroy "infrastructure/lv-3-cluster-services/platform-observability/02-logging"
 run_terraform_destroy "infrastructure/lv-3-cluster-services/platform-observability/01-monitoring"
+run_terraform_destroy "infrastructure/lv-3-cluster-services/neuron-device-plugin"
+run_terraform_destroy "infrastructure/lv-3-cluster-services/nvidia-device-plugin"
 run_terraform_destroy "infrastructure/lv-3-cluster-services/karpenter"
 run_terraform_destroy "infrastructure/lv-3-cluster-services/efs"
 

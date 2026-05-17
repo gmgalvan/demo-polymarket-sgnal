@@ -40,6 +40,8 @@ run_terraform_apply \
 
 run_terraform_apply "infrastructure/lv-3-cluster-services/efs"
 run_terraform_apply "infrastructure/lv-3-cluster-services/karpenter"
+run_terraform_apply "infrastructure/lv-3-cluster-services/nvidia-device-plugin"
+run_terraform_apply "infrastructure/lv-3-cluster-services/neuron-device-plugin"
 run_terraform_apply "infrastructure/lv-3-cluster-services/platform-observability/01-monitoring"
 run_terraform_apply "infrastructure/lv-3-cluster-services/platform-observability/02-logging"
 run_terraform_apply "infrastructure/lv-3-cluster-services/platform-observability/04-gpu-metrics"

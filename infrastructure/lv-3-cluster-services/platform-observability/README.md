@@ -23,6 +23,10 @@ its own state, providers, and lifecycle.
 
 ## Notes
 
+- Accelerator device plugins are managed separately in
+  `lv-3-cluster-services/nvidia-device-plugin` and
+  `lv-3-cluster-services/neuron-device-plugin` so Karpenter can stay focused
+  on node provisioning.
 - `01-monitoring` should come first because the other stacks assume the
   `monitoring` namespace and Prometheus/Grafana conventions already exist.
 - `01-monitoring` now reads the Grafana admin password from

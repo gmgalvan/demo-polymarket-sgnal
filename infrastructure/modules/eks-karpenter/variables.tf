@@ -70,18 +70,6 @@ variable "inferentia_instance_types" {
   type        = list(string)
 }
 
-variable "install_nvidia_device_plugin" {
-  description = "Whether to install the NVIDIA device plugin via Helm."
-  type        = bool
-  default     = true
-}
-
-variable "install_neuron_device_plugin" {
-  description = "Whether to install the AWS Neuron device plugin via Helm."
-  type        = bool
-  default     = true
-}
-
 variable "enable_karpenter_nodepools" {
   description = "Whether to install Karpenter EC2NodeClass and NodePool resources."
   type        = bool

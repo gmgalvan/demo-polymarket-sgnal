@@ -19,7 +19,7 @@
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
-          "expr": "count(kube_node_labels{label_workload=\"gpu\"})",
+          "expr": "count(max by(node) (kube_node_status_allocatable{resource=\"nvidia_com_gpu\"} > 0)) or vector(0)",
           "legendFormat": "GPU nodes"
         }
       ]
@@ -31,7 +31,7 @@
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
-          "expr": "count(kube_node_labels{label_workload=\"neuron\"})",
+          "expr": "count(max by(node) (kube_node_status_allocatable{resource=\"aws_amazon_com_neuroncore\"} > 0)) or vector(0)",
           "legendFormat": "Inferentia nodes"
         }
       ]
@@ -43,7 +43,7 @@
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
-          "expr": "count(kube_node_labels{label_workload=\"core\"})",
+          "expr": "count((max by(node) (kube_node_status_allocatable{resource=\"cpu\"} > 0)) unless on(node) (max by(node) (kube_node_status_allocatable{resource=\"nvidia_com_gpu\"} > 0)) unless on(node) (max by(node) (kube_node_status_allocatable{resource=\"aws_amazon_com_neuroncore\"} > 0))) or vector(0)",
           "legendFormat": "Core nodes"
         }
       ]
@@ -84,7 +84,7 @@
       ]
     },
     {
-      "title": "Avg GPU Utilization",
+      "title": "Recent GPU Utilization (5m max)",
       "type": "gauge",
       "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
@@ -105,7 +105,7 @@
       },
       "targets": [
         {
-          "expr": "avg(DCGM_FI_DEV_GPU_UTIL) or vector(0)",
+          "expr": "avg(max_over_time(DCGM_FI_DEV_GPU_UTIL[5m])) or vector(0)",
           "legendFormat": "Avg util"
         }
       ]
@@ -207,12 +207,8 @@
       "fieldConfig": { "defaults": { "unit": "short" } },
       "targets": [
         {
-          "expr": "karpenter_nodepools_allowed_disruptions",
-          "legendFormat": "Allowed disruptions — {{nodepool}}"
-        },
-        {
-          "expr": "karpenter_nodes_total_daemon_requests{resource_type=\"cpu\"}",
-          "legendFormat": "Daemon CPU — {{nodepool}}"
+          "expr": "count by (label_karpenter_sh_nodepool) (kube_node_labels{label_karpenter_sh_nodepool!=\"\"})",
+          "legendFormat": "Nodes — {{label_karpenter_sh_nodepool}}"
         }
       ]
     },

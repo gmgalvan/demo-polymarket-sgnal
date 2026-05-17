@@ -1,5 +1,5 @@
 variable "aws_region" {
-  description = "AWS region where EKS and Karpenter resources are managed."
+  description = "AWS region where EKS and the AWS Neuron device plugin are managed."
   type        = string
   default     = "us-east-1"
 }
@@ -22,21 +22,8 @@ variable "eks_state_region" {
   default     = "us-east-1"
 }
 
-variable "karpenter_namespace" {
-  description = "Namespace where Karpenter will be installed."
+variable "plugin_namespace" {
+  description = "Namespace where the AWS Neuron device plugin is installed."
   type        = string
   default     = "kube-system"
-}
-
-variable "karpenter_chart_version" {
-  description = "Karpenter Helm chart version. Set null to use latest chart."
-  type        = string
-  default     = null
-  nullable    = true
-}
-
-variable "enable_karpenter_nodepools" {
-  description = "Whether to install EC2NodeClass and NodePool resources."
-  type        = bool
-  default     = true
 }

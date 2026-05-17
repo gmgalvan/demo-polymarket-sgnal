@@ -117,6 +117,73 @@ Exports metrics from the NVIDIA Data Center GPU Manager via a DaemonSet.
 | `DCGM_FI_DEV_SM_CLOCK` | Streaming multiprocessor clock (MHz) |
 | `DCGM_FI_DEV_XID_ERRORS` | Xid hardware/driver errors |
 
+**How to interpret them in this demo:**
+
+- `DCGM_FI_DEV_FB_USED`
+  - If this goes up and stays high, the model has been loaded into VRAM and is
+    occupying GPU memory even while idle.
+- `DCGM_FI_DEV_GPU_TEMP`
+  - A rising temperature usually means the accelerator is doing real work or
+    has just finished a burst of work.
+- `DCGM_FI_DEV_POWER_USAGE`
+  - Short spikes are a good sign that the GPU is actively serving or decoding
+    tokens.
+- `DCGM_FI_DEV_GPU_UTIL`
+  - This is the easiest metric to misread. It is often close to `0` when the
+    workload is idle, and short requests may finish before the panel catches a
+    high instantaneous value.
+  - If token throughput, power draw, or temperature move while `GPU_UTIL` stays
+    near `0`, that usually means the requests were too short for the current
+    panel/window, not that scraping is broken.
+
+**Useful validation queries:**
+
+```promql
+DCGM_FI_DEV_FB_USED
+```
+
+Interpretation:
+- Confirms VRAM is being used on the GPU node.
+- A stable high value after startup usually means the model remains resident in
+  GPU memory.
+
+```promql
+DCGM_FI_DEV_GPU_TEMP
+```
+
+Interpretation:
+- Temperature should move up under load and settle back down when idle.
+
+```promql
+DCGM_FI_DEV_POWER_USAGE
+```
+
+Interpretation:
+- Good for spotting short bursts of activity that may not show up cleanly in an
+  instantaneous utilization gauge.
+
+```promql
+DCGM_FI_DEV_GPU_UTIL
+```
+
+Interpretation:
+- Shows point-in-time utilization.
+- Best for sustained load, but not always reliable for very short demo
+  requests.
+
+```promql
+max_over_time(DCGM_FI_DEV_GPU_UTIL[5m])
+```
+
+```promql
+avg_over_time(DCGM_FI_DEV_GPU_UTIL[5m])
+```
+
+Interpretation:
+- These are often better than the raw instant value for demo validation.
+- Use them when the GPU is clearly doing work but the dashboard gauge still
+  looks idle.
+
 **Alerting rules (`gpu.rules`):**
 
 | Alert | Condition | Severity |
@@ -209,11 +276,17 @@ from Grafana Explore without opening Prometheus or Loki directly.
 Use Grafana `Explore` with the `Prometheus` datasource and switch to `Code`
 mode.
 
-Check that the Inferentia smoke pod is visible on the expected node:
+Check that the Inferentia smoke pod is visible on the expected node
+(`NODE_NAME` should be the current Inferentia node, for example
+`ip-10-40-8-61.ec2.internal`):
 
 ```promql
-kube_pod_info{namespace="demo-examples", node="ip-10-40-7-189.ec2.internal"}
+kube_pod_info{namespace="demo-examples", node="NODE_NAME"}
 ```
+
+Interpretation:
+- You should see a series for `neuron-smoke-inf2-*`.
+- If the series exists, Prometheus can see the pod and the pod-to-node mapping.
 
 Check pod phases inside the demo namespace:
 
@@ -221,17 +294,31 @@ Check pod phases inside the demo namespace:
 kube_pod_status_phase{namespace="demo-examples"}
 ```
 
+Interpretation:
+- `phase="Running"` should be `1` for healthy demo pods.
+- `Pending` briefly going to `1` during provisioning is normal.
+- `Failed`, `Unknown`, or a long-lived `Pending=1` indicate a problem to debug.
+
 Check container readiness inside the demo namespace:
 
 ```promql
 kube_pod_container_status_ready{namespace="demo-examples"}
 ```
 
+Interpretation:
+- The target container should end up at `1`.
+- `0` means the pod exists but the app is not ready yet.
+
 Check node conditions for the Inferentia node:
 
 ```promql
-kube_node_status_condition{node="ip-10-40-7-189.ec2.internal"}
+kube_node_status_condition{node="NODE_NAME"}
 ```
+
+Interpretation:
+- `condition="Ready"` should be `1`.
+- Conditions such as `DiskPressure`, `MemoryPressure`, or `PIDPressure`
+  should normally stay at `0`.
 
 ### Loki
 
@@ -243,11 +330,21 @@ Check logs for the Inferentia smoke pod:
 {namespace="demo-examples", pod=~"neuron-smoke-inf2.*"}
 ```
 
+Interpretation:
+- You should see request logs and health probe lines from the smoke pod.
+- If no logs appear but the pod is `Running`, check whether Fluent Bit is
+  healthy on that node.
+
 If you want only the application lines from the smoke container:
 
 ```logql
 {namespace="demo-examples", pod=~"neuron-smoke-inf2.*", container="neuron-smoke"}
 ```
+
+Interpretation:
+- This is the cleanest view for validating the app itself.
+- A healthy smoke test usually shows `server is listening on :5678` and `200`
+  responses from kube probes.
 
 ---
 
@@ -266,6 +363,38 @@ vLLM natively exposes `/metrics` on port 8000 with LLM-specific Prometheus metri
 | `vllm:generation_tokens_total` | Cumulative generation tokens produced |
 | `vllm:num_requests_waiting` | Requests queued (waiting for a slot) |
 | `vllm:num_requests_running` | Requests currently being processed |
+
+Useful demo queries:
+
+```promql
+vllm:num_requests_running
+```
+
+Interpretation:
+- `> 0` means vLLM is actively serving a request right now.
+- `0` after a test request is normal; it only means the model is idle.
+
+```promql
+vllm:num_requests_waiting
+```
+
+Interpretation:
+- `0` is healthy for a light demo load.
+- Values above `0` mean requests are queueing and can indicate saturation.
+
+```promql
+vllm:prompt_tokens_total
+```
+
+```promql
+vllm:generation_tokens_total
+```
+
+Interpretation:
+- These are cumulative counters.
+- They should increase after each successful prompt/completion.
+- In the `03-vllm-qwen25-3b-gpu` example they should roughly match the token
+  counts returned by the chat completion API response.
 
 **Alerting rules (`llm.rules`):**
 

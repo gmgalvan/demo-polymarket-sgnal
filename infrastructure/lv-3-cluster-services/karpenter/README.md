@@ -1,20 +1,24 @@
 # Karpenter (lv-3 cluster services)
 
-This stack manages in-cluster Karpenter resources and accelerator plugins:
+This stack manages in-cluster Karpenter resources only:
 
 - Karpenter CRDs and controller via Helm
-- NVIDIA and Neuron device plugins
 - EC2NodeClass and NodePool resources for:
   - `arm-general`
   - `gpu-inference`
   - `neuron-inference`
 
+Accelerator device plugins now live in:
+
+- `infrastructure/lv-3-cluster-services/nvidia-device-plugin/`
+- `infrastructure/lv-3-cluster-services/neuron-device-plugin/`
+
 It reads EKS connection and networking values from `lv-2-core-compute/eks` remote state.
 
 Design goal:
 
-- one `terraform apply` in this stack
-- no phased `enable_karpenter_*` toggles in the command line
+- keep Karpenter focused on node provisioning and pool definitions
+- keep accelerator runtime plumbing separate from autoscaling logic
 
 ## Usage
 

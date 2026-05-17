@@ -41,8 +41,6 @@ module "eks_karpenter" {
   l40s_instance_type        = data.terraform_remote_state.eks.outputs.l40s_instance_type
   inferentia_instance_types = data.terraform_remote_state.eks.outputs.inferentia_karpenter_instance_types
 
-  # Optional cluster add-ons managed by the module.
-  install_nvidia_device_plugin = var.install_nvidia_device_plugin
-  install_neuron_device_plugin = var.install_neuron_device_plugin
-  enable_karpenter_nodepools   = var.enable_karpenter_nodepools
+  # Optional cluster-side Karpenter resources.
+  enable_karpenter_nodepools = var.enable_karpenter_nodepools
 }
