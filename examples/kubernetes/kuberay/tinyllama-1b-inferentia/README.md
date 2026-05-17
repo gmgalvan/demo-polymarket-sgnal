@@ -72,7 +72,7 @@ docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/vllm-neuron-ra
 If you have not built `vllm-neuron:latest` yet, do it first:
 
 ```bash
-cd kubernetes/examples/manual-model-deployment/04-vllm-neuron-tinyllama-1b-inf2
+cd kubernetes/examples/manual-inference-deployment/04-vllm-neuron-tinyllama-1b-inf2
 AWS_REGION=us-east-1 ECR_REPO=vllm-neuron IMAGE_TAG=latest VLLM_REF=v0.6.0 \
   ./build-and-push-ecr-ec2.sh
 ```

@@ -49,7 +49,7 @@ Comando:
 ```bash
 curl -s http://127.0.0.1:8000/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -d @kubernetes/examples/manual-model-deployment/04-vllm-neuron-tinyllama-1b-inf2/request.chat-test.json
+  -d @kubernetes/examples/manual-inference-deployment/04-vllm-neuron-tinyllama-1b-inf2/request.chat-test.json
 ```
 
 Qué panel mirar:
@@ -100,7 +100,7 @@ Cómo leerlo:
 Usa el script async:
 
 ```bash
-cd kubernetes/examples/manual-model-deployment/04-vllm-neuron-tinyllama-1b-inf2
+cd kubernetes/examples/manual-inference-deployment/04-vllm-neuron-tinyllama-1b-inf2
 python3 load_test_async.py --requests 10 --concurrency 5 --print-samples 2
 ```
 
@@ -238,13 +238,13 @@ Request simple:
 ```bash
 curl -s http://127.0.0.1:8000/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -d @kubernetes/examples/manual-model-deployment/04-vllm-neuron-tinyllama-1b-inf2/request.chat-test.json
+  -d @kubernetes/examples/manual-inference-deployment/04-vllm-neuron-tinyllama-1b-inf2/request.chat-test.json
 ```
 
 Carga moderada:
 
 ```bash
-cd kubernetes/examples/manual-model-deployment/04-vllm-neuron-tinyllama-1b-inf2
+cd kubernetes/examples/manual-inference-deployment/04-vllm-neuron-tinyllama-1b-inf2
 python3 load_test_async.py --requests 10 --concurrency 5 --print-samples 2
 ```
 

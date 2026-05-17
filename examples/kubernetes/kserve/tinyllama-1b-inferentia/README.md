@@ -29,7 +29,7 @@ KServe does not provide a Neuron-ready image. You must build and push the same
 image used in example 04:
 
 ```bash
-cd kubernetes/examples/manual-model-deployment/04-vllm-neuron-tinyllama-1b-inf2
+cd kubernetes/examples/manual-inference-deployment/04-vllm-neuron-tinyllama-1b-inf2
 AWS_REGION=us-east-1 \
 ECR_REPO=vllm-neuron \
 IMAGE_TAG=latest \

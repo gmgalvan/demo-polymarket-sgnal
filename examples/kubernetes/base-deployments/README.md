@@ -1,4 +1,4 @@
-# manual-model-deployment
+# manual-inference-deployment
 
 Manual Kubernetes deployments for validating each hardware lane independently.
 
@@ -40,12 +40,12 @@ Scale down or delete each example individually. The namespace is shared and is n
 
 ```bash
 # GPU example
-kubectl delete -k kubernetes/examples/manual-model-deployment/03-vllm-qwen25-3b-gpu
+kubectl delete -k kubernetes/examples/manual-inference-deployment/03-vllm-qwen25-3b-gpu
 
 # Inferentia smoke
-kubectl delete -k kubernetes/examples/manual-model-deployment/02-inferentia-smoke-inf2
+kubectl delete -k kubernetes/examples/manual-inference-deployment/02-inferentia-smoke-inf2
 
 # Inferentia LLM
 kubectl scale deployment -n ai-example vllm-neuron-tinyllama-1b --replicas=0
-kubectl delete -k kubernetes/examples/manual-model-deployment/04-vllm-neuron-tinyllama-1b-inf2
+kubectl delete -k kubernetes/examples/manual-inference-deployment/04-vllm-neuron-tinyllama-1b-inf2
 ```
