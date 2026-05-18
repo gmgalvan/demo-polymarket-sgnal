@@ -85,7 +85,7 @@ FSx for Lustre infrastructure is not included in this repo but would follow the 
 Infrastructure required: **None**
 
 ```bash
-kubectl apply -f kubernetes/examples/01-model-storage/01-emptydir-download.yaml -n demo-examples
+kubectl apply -f examples/kubernetes/base-deployments/01-model-storage/01-emptydir-download.yaml -n demo-examples
 ```
 
 ## Strategy 2: PersistentVolume with EFS
@@ -98,7 +98,7 @@ Infrastructure required:
 - StorageClass `efs-sc` (created by the Terraform above)
 
 ```bash
-kubectl apply -f kubernetes/examples/01-model-storage/02-pv-efs.yaml -n demo-examples
+kubectl apply -f examples/kubernetes/base-deployments/01-model-storage/02-pv-efs.yaml -n demo-examples
 ```
 
 Key details:
@@ -138,7 +138,7 @@ crane append \
 ```
 
 ```bash
-kubectl apply -f kubernetes/examples/01-model-storage/03-oci-volume-mount.yaml -n demo-examples
+kubectl apply -f examples/kubernetes/base-deployments/01-model-storage/03-oci-volume-mount.yaml -n demo-examples
 ```
 
 ---

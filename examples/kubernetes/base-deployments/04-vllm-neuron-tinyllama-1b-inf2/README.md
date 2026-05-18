@@ -45,7 +45,7 @@ Notes:
 Run from this folder:
 
 ```bash
-cd kubernetes/examples/manual-inference-deployment/04-vllm-neuron-tinyllama-1b-inf2
+cd examples/kubernetes/base-deployments/04-vllm-neuron-tinyllama-1b-inf2
 AWS_REGION=us-east-1 \
 ECR_REPO=vllm-neuron \
 IMAGE_TAG=latest \
@@ -186,8 +186,8 @@ export AWS_REGION=us-east-1
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 export IMAGE_URI=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/vllm-neuron:latest
 
-kubectl apply -f kubernetes/examples/00-namespace.yaml
-kubectl apply -k kubernetes/examples/manual-inference-deployment/04-vllm-neuron-tinyllama-1b-inf2
+kubectl apply -f examples/kubernetes/00-namespace.yaml
+kubectl apply -k examples/kubernetes/base-deployments/04-vllm-neuron-tinyllama-1b-inf2
 kubectl set image deployment/vllm-neuron-tinyllama-1b vllm-neuron="${IMAGE_URI}" -n demo-examples
 kubectl scale deployment/vllm-neuron-tinyllama-1b --replicas=1 -n demo-examples
 kubectl rollout status deployment/vllm-neuron-tinyllama-1b -n demo-examples
@@ -213,7 +213,7 @@ In another terminal:
 curl http://127.0.0.1:8000/health
 curl http://127.0.0.1:8000/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -d @kubernetes/examples/manual-inference-deployment/04-vllm-neuron-tinyllama-1b-inf2/request.chat-test.json
+  -d @/home/gmgalvan/demo-polymarket-sgnal/examples/kubernetes/base-deployments/04-vllm-neuron-tinyllama-1b-inf2/request.chat-test.json
 ```
 
 ## 5) Generate demo load
@@ -221,7 +221,7 @@ curl http://127.0.0.1:8000/v1/chat/completions \
 Instead of backgrounding multiple `curl` commands, use the included async load script:
 
 ```bash
-cd /path/to/repo/examples/kubernetes/base-deployments/04-vllm-neuron-tinyllama-1b-inf2
+cd /home/gmgalvan/demo-polymarket-sgnal/examples/kubernetes/base-deployments/04-vllm-neuron-tinyllama-1b-inf2
 python3 load_test_async.py --requests 10 --concurrency 5
 ```
 
@@ -273,10 +273,10 @@ then rebuild and push image with this repo's updated `Dockerfile.neuron` (pins `
 ```bash
 kubectl scale deployment/vllm-neuron-tinyllama-1b --replicas=0 -n demo-examples
 
-cd kubernetes/examples/manual-inference-deployment/04-vllm-neuron-tinyllama-1b-inf2
+cd /home/gmgalvan/demo-polymarket-sgnal/examples/kubernetes/base-deployments/04-vllm-neuron-tinyllama-1b-inf2
 AWS_REGION=us-east-1 ECR_REPO=vllm-neuron IMAGE_TAG=latest VLLM_REF=v0.6.0 ./build-and-push-ecr-ec2.sh
 
-kubectl apply -k kubernetes/examples/manual-inference-deployment/04-vllm-neuron-tinyllama-1b-inf2
+kubectl apply -k examples/kubernetes/base-deployments/04-vllm-neuron-tinyllama-1b-inf2
 kubectl scale deployment/vllm-neuron-tinyllama-1b --replicas=1 -n demo-examples
 kubectl rollout status deployment/vllm-neuron-tinyllama-1b -n demo-examples
 ```
@@ -313,10 +313,10 @@ rebuild image with this repo's `Dockerfile.neuron` (pins compatible libs:
 ```bash
 kubectl scale deployment/vllm-neuron-tinyllama-1b --replicas=0 -n demo-examples
 
-cd kubernetes/examples/manual-inference-deployment/04-vllm-neuron-tinyllama-1b-inf2
+cd /home/gmgalvan/demo-polymarket-sgnal/examples/kubernetes/base-deployments/04-vllm-neuron-tinyllama-1b-inf2
 AWS_REGION=us-east-1 ECR_REPO=vllm-neuron IMAGE_TAG=latest VLLM_REF=v0.6.0 ./build-and-push-ecr-ec2.sh
 
-kubectl apply -k kubernetes/examples/manual-inference-deployment/04-vllm-neuron-tinyllama-1b-inf2
+kubectl apply -k examples/kubernetes/base-deployments/04-vllm-neuron-tinyllama-1b-inf2
 kubectl scale deployment/vllm-neuron-tinyllama-1b --replicas=1 -n demo-examples
 kubectl rollout status deployment/vllm-neuron-tinyllama-1b -n demo-examples
 ```
@@ -335,7 +335,7 @@ Only models ≤2B (TinyLlama, Llama-3.2-1B) fit on inf2.xlarge. For 3B+ models, 
 Then roll deployment:
 
 ```bash
-kubectl apply -k kubernetes/examples/manual-inference-deployment/04-vllm-neuron-tinyllama-1b-inf2
+kubectl apply -k examples/kubernetes/base-deployments/04-vllm-neuron-tinyllama-1b-inf2
 kubectl rollout restart deployment/vllm-neuron-tinyllama-1b -n demo-examples
 kubectl rollout status deployment/vllm-neuron-tinyllama-1b -n demo-examples --timeout=45m
 ```
@@ -370,7 +370,7 @@ kubectl get nodeclaims
 
 ```bash
 kubectl scale deployment -n demo-examples vllm-neuron-tinyllama-1b --replicas=0
-kubectl delete -k kubernetes/examples/manual-inference-deployment/04-vllm-neuron-tinyllama-1b-inf2
+kubectl delete -k examples/kubernetes/base-deployments/04-vllm-neuron-tinyllama-1b-inf2
 kubectl delete secret huggingface-token -n demo-examples --ignore-not-found
 ```
 

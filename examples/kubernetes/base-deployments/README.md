@@ -1,4 +1,4 @@
-# manual-inference-deployment
+# base-deployments
 
 Manual Kubernetes deployments for validating each hardware lane independently.
 
@@ -15,7 +15,7 @@ These examples are applied **one at a time** with `kubectl` — they are not par
 All examples share the `demo-examples` namespace. Apply it once before any example:
 
 ```bash
-kubectl apply -f kubernetes/examples/00-namespace.yaml
+kubectl apply -f examples/kubernetes/00-namespace.yaml
 ```
 
 ## What each example proves
@@ -40,12 +40,12 @@ Scale down or delete each example individually. The namespace is shared and is n
 
 ```bash
 # GPU example
-kubectl delete -k kubernetes/examples/manual-inference-deployment/03-vllm-qwen25-3b-gpu
+kubectl delete -k examples/kubernetes/base-deployments/03-vllm-qwen25-3b-gpu
 
 # Inferentia smoke
-kubectl delete -k kubernetes/examples/manual-inference-deployment/02-inferentia-smoke-inf2
+kubectl delete -k examples/kubernetes/base-deployments/02-inferentia-smoke-inf2
 
 # Inferentia LLM
 kubectl scale deployment -n demo-examples vllm-neuron-tinyllama-1b --replicas=0
-kubectl delete -k kubernetes/examples/manual-inference-deployment/04-vllm-neuron-tinyllama-1b-inf2
+kubectl delete -k examples/kubernetes/base-deployments/04-vllm-neuron-tinyllama-1b-inf2
 ```

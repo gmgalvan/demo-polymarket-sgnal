@@ -30,11 +30,13 @@ Thumbs.db
 
 # Terraform
 infra/**/.terraform/
+infra/**/.terraform.lock.hcl
 infra/**/*.tfstate
 infra/**/*.tfstate.backup
 infra/**/*.tfvars
 !infra/**/*.tfvars.example
 infrastructure/**/.terraform/
+infrastructure/**/.terraform.lock.hcl
 infrastructure/**/*.tfstate
 infrastructure/**/*.tfstate.backup
 infrastructure/**/*.tfvars

@@ -27,7 +27,7 @@
       },
       "targets": [
         {
-          "expr": "100 * neuroncore_utilization_ratio{instance=~\"$instance\"}",
+          "expr": "100 * max_over_time(neuroncore_utilization_ratio{instance=~\"${instance:regex}\"}[5m])",
           "legendFormat": "Core {{neuroncore}} — {{instance}}"
         }
       ]
@@ -44,11 +44,11 @@
       },
       "targets": [
         {
-          "expr": "neuron_runtime_memory_used_bytes{instance=~\"$instance\",memory_location=\"neuron_device\"} / 1073741824",
+          "expr": "neuron_runtime_memory_used_bytes{instance=~\"${instance:regex}\",memory_location=\"neuron_device\"} / 1073741824",
           "legendFormat": "Neuron device — {{instance}}"
         },
         {
-          "expr": "neuron_runtime_memory_used_bytes{instance=~\"$instance\",memory_location=\"host\"} / 1048576",
+          "expr": "neuron_runtime_memory_used_bytes{instance=~\"${instance:regex}\",memory_location=\"host\"} / 1048576",
           "legendFormat": "Host runtime (MiB) — {{instance}}"
         }
       ]
@@ -73,7 +73,7 @@
       },
       "targets": [
         {
-          "expr": "neuron_runtime_memory_used_bytes{instance=~\"$instance\",memory_location=\"neuron_device\"} / 1073741824",
+          "expr": "neuron_runtime_memory_used_bytes{instance=~\"${instance:regex}\",memory_location=\"neuron_device\"} / 1073741824",
           "legendFormat": "{{instance}}"
         }
       ]
@@ -90,7 +90,7 @@
       },
       "targets": [
         {
-          "expr": "neuron_runtime_memory_used_bytes{instance=~\"$instance\",memory_location=\"host\"} / 1048576",
+          "expr": "neuron_runtime_memory_used_bytes{instance=~\"${instance:regex}\",memory_location=\"host\"} / 1048576",
           "legendFormat": "Host runtime — {{instance}}"
         }
       ]
@@ -113,7 +113,7 @@
       },
       "targets": [
         {
-          "expr": "up{service=\"neuron-monitor\",instance=~\"$instance\"}",
+          "expr": "up{job=\"neuron-monitor\",instance=~\"${instance:regex}\"}",
           "legendFormat": "Up — {{instance}}"
         }
       ]
@@ -132,7 +132,7 @@
       },
       "targets": [
         {
-          "expr": "100 * neuroncore_utilization_ratio{instance=~\"$instance\"}",
+          "expr": "100 * max_over_time(neuroncore_utilization_ratio{instance=~\"${instance:regex}\"}[5m])",
           "legendFormat": "Core {{neuroncore}}"
         }
       ]
@@ -149,7 +149,7 @@
       },
       "targets": [
         {
-          "expr": "neuron_runtime_memory_used_bytes{instance=~\"$instance\"}",
+          "expr": "neuron_runtime_memory_used_bytes{instance=~\"${instance:regex}\"}",
           "legendFormat": "{{memory_location}} — {{instance}}"
         }
       ]
@@ -161,7 +161,7 @@
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
-          "expr": "up{service=\"neuron-monitor\",instance=~\"$instance\"}",
+          "expr": "up{job=\"neuron-monitor\",instance=~\"${instance:regex}\"}",
           "format": "table",
           "instant": true
         }
@@ -191,9 +191,10 @@
         "name": "instance",
         "type": "query",
         "datasource": { "type": "prometheus", "uid": "${datasource}" },
-        "query": "label_values(neuroncore_utilization_ratio, instance)",
+        "query": "label_values(up{job=\"neuron-monitor\"}, instance)",
         "includeAll": true,
         "multi": true,
+        "allValue": ".*",
         "current": { "text": "All", "value": "$__all" }
       }
     ]
