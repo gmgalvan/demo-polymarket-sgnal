@@ -1,4 +1,4 @@
-# Strategy 4: OCI Image Volume Mount (Kubernetes 1.31+)
+# Strategy 4: OCI Image Volume Mount (Kubernetes 1.35+ recommended)
 #
 # The model is packaged as an OCI image and mounted directly as a read-only volume.
 # No init-containers, no symlinks, no process namespace sharing.
@@ -9,7 +9,7 @@
 #   - Immutable, versioned model artifacts (tag = version)
 #   - Layer sharing for LoRA: base model as shared layers, adapters as additional layers
 # Cons:
-#   - Requires Kubernetes 1.31+ with ImageVolume feature gate enabled
+#   - Requires Kubernetes 1.35+ or a cluster where ImageVolume is explicitly enabled
 #   - Requires containerd 2.0+ or CRI-O 1.33+
 #   - Beta as of Kubernetes 1.35
 #   - Must build and push the model as an OCI image first
@@ -19,7 +19,7 @@
 # Building the OCI model image (example with crane):
 #
 #   # Download model locally
-#   huggingface-cli download Qwen/Qwen2.5-3B-Instruct --local-dir ./qwen25-3b
+#   hf download Qwen/Qwen2.5-3B-Instruct --local-dir ./qwen25-3b
 #
 #   # Package as OCI image and push to ECR
 #   crane append \
@@ -27,7 +27,7 @@
 #     --new_layer <(tar -C ./qwen25-3b -cf - .) \
 #     --platform linux/amd64
 #
-# See: docs/model-data-summary.md — Strategy 4
+# See: ../../../../docs/model-data-summary.md — Strategy 4
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -40,7 +40,7 @@ metadata:
     app.kubernetes.io/component: inference
     app.kubernetes.io/part-of: demo-examples
 spec:
-  replicas: 2
+  replicas: 1  # Demo default: validate OCI-mounted model startup without needing a second GPU node
   strategy:
     type: RollingUpdate
   selector:
@@ -112,6 +112,7 @@ spec:
         # OCI Image Volume: the model IS the image.
         # Kubernetes pulls it like a container image, caches layers, mounts read-only.
         # Replace with your ECR URI containing the packaged model.
+        # For demo validation, scale 0->1 or recreate the pod to show runtime layer cache reuse.
         - name: model-volume
           image:
             reference: <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/models/qwen25-3b:v1

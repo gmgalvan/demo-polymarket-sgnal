@@ -44,7 +44,7 @@ metadata:
     app.kubernetes.io/component: inference
     app.kubernetes.io/part-of: demo-examples
 spec:
-  replicas: 2              # Multiple replicas sharing the same PV
+  replicas: 1              # Demo default: scale 0->1 to validate EFS-backed model persistence without needing a second GPU node
   strategy:
     type: RollingUpdate
   selector:
@@ -70,8 +70,9 @@ spec:
           operator: Equal
           value: "true"
           effect: NoSchedule
-      # Init-container: download model to PV if not already present.
-      # Runs once; subsequent pods find the model already on EFS.
+      # Init-container: download model to PV only if it is not already present.
+      # For this demo, validate persistence by scaling 0->1 or recreating the pod.
+      # Additional replicas can also reuse the same model data, but they still need GPU capacity.
       initContainers:
         - name: model-downloader
           image: python:3.11-slim

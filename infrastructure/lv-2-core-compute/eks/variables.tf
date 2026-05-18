@@ -25,7 +25,7 @@ variable "cluster_name" {
 variable "cluster_version" {
   description = "EKS control plane version."
   type        = string
-  default     = "1.34"
+  default     = "1.35"
 }
 
 variable "eks_endpoint_public_access" {

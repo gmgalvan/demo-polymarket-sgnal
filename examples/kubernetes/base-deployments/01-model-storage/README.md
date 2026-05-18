@@ -1,6 +1,6 @@
 # 01-model-storage
 
-Example manifests demonstrating different strategies for bringing LLM model data into Kubernetes pods. Each file corresponds to a strategy described in [docs/model-data-summary.md](../../docs/model-data-summary.md).
+Example manifests demonstrating different strategies for bringing LLM model data into Kubernetes pods. Each file corresponds to a strategy described in [docs/model-data-summary.md](../../../../docs/model-data-summary.md).
 
 All examples use vLLM with `Qwen/Qwen2.5-3B-Instruct` on the GPU lane for consistency.
 
@@ -20,7 +20,7 @@ Strategies 2+ require storage infrastructure provisioned via Terraform before th
 
 ### EFS (Strategy 2)
 
-Terraform code: [`infrastructure/lv-3-cluster-services/efs/`](../../infrastructure/lv-3-cluster-services/efs/)
+Terraform code: [`infrastructure/lv-3-cluster-services/efs/`](../../../../infrastructure/lv-3-cluster-services/efs/)
 
 What it provisions:
 - EFS filesystem (encrypted, elastic throughput)
@@ -93,7 +93,7 @@ kubectl apply -f examples/kubernetes/base-deployments/01-model-storage/01-emptyd
 Model is downloaded once by an init-container into an EFS-backed PV, then mounted read-only by all replicas.
 
 Infrastructure required:
-- EFS filesystem + mount targets ([`infrastructure/lv-3-cluster-services/efs/`](../../infrastructure/lv-3-cluster-services/efs/))
+- EFS filesystem + mount targets ([`infrastructure/lv-3-cluster-services/efs/`](../../../../infrastructure/lv-3-cluster-services/efs/))
 - EFS CSI driver (installed by the Terraform above)
 - StorageClass `efs-sc` (created by the Terraform above)
 
@@ -105,7 +105,34 @@ Key details:
 - Init-container skips download if model already exists on PV
 - vLLM mounts PV as `readOnly: true` (enables OS page cache, zero lock contention)
 - Multiple replicas share the same model data
-- First pod downloads the model (~1-2 min for 6GB); subsequent pods start immediately
+- First pod downloads the model (~1-2 min for 6GB)
+- A recreated pod should start faster because the model is already present on EFS
+- Additional replicas can also reuse the same model data, but they still need separate GPU capacity and may remain `Pending` until Karpenter provisions another node
+
+Why this uses an `initContainer`:
+
+- The init container acts as a one-time bootstrap step for the shared model cache.
+- It mounts the same EFS volume at `/models`, checks whether the model directory already exists, and only downloads the model if it is missing.
+- This keeps the serving container focused on running vLLM instead of mixing model bootstrap logic into the runtime startup path.
+- The example uses `python:3.11-slim` plus `huggingface_hub.snapshot_download(...)` inline because it is a simple, self-contained demo pattern that does not require building a separate downloader image.
+- In a more productionized setup, the same idea could be implemented with a dedicated downloader image or a small checked-in script, but the behavior would be the same: populate EFS once, then reuse it across pod restarts.
+
+Recommended demo validation flow:
+
+```bash
+# Deploy the example
+kubectl apply -f examples/kubernetes/base-deployments/01-model-storage/02-pv-efs.yaml -n demo-examples
+
+# Confirm the PVC is bound
+kubectl get pvc -n demo-examples
+
+# Validate persistence by restarting the workload
+kubectl scale deployment/vllm-gpu-pv --replicas=0 -n demo-examples
+kubectl scale deployment/vllm-gpu-pv --replicas=1 -n demo-examples
+kubectl get pods -n demo-examples -w
+```
+
+This demonstrates the main benefit of the strategy without depending on a second GPU node being available immediately.
 
 ## Strategy 3: Modelcars (KServe)
 
@@ -115,31 +142,102 @@ The modelcar approach uses a sidecar container that holds the OCI model image an
 
 Infrastructure required: KServe operator + OCI model image in ECR
 
-## Strategy 4: OCI Image Volume Mount (K8s 1.31+)
+## Strategy 4: OCI Image Volume Mount (Kubernetes 1.35+ recommended)
 
 The model is packaged as an OCI image and mounted directly as a native Kubernetes volume. No init-containers, no symlinks, no copying.
 
 Infrastructure required:
-- Kubernetes 1.31+ with `ImageVolume` feature gate enabled
+- Kubernetes 1.35+ recommended so `ImageVolume` is enabled by default
 - containerd 2.0+ or CRI-O 1.33+
 - Model packaged and pushed as an OCI image to ECR
 
+Validation note:
+- This strategy was not validated on the earlier EKS 1.34 setup because the `image` volume fields were dropped from the live Pod spec.
+- This strategy was validated successfully on EKS 1.35, where the model OCI artifact mounted at `/models` and vLLM reached `1/1 Running`.
+
 Building the model image:
+
+About `crane`:
+- `crane` is a lightweight OCI/registry CLI from Google's `go-containerregistry` project.
+- Official project page: `https://github.com/google/go-containerregistry`
+- `crane` command reference: `https://github.com/google/go-containerregistry/tree/main/cmd/crane`
+- It is used here as a simple way to package a local model directory as an OCI artifact and push it to ECR without writing a full Dockerfile.
 
 ```bash
 # Download model
-huggingface-cli download Qwen/Qwen2.5-3B-Instruct --local-dir ./qwen25-3b
+hf download Qwen/Qwen2.5-3B-Instruct --local-dir ./qwen25-3b
+```
 
-# Package as OCI image with crane
+Install `crane` (Linux x86_64 example):
+
+```bash
+curl -LO https://github.com/google/go-containerregistry/releases/latest/download/go-containerregistry_Linux_x86_64.tar.gz
+tar -xzf go-containerregistry_Linux_x86_64.tar.gz crane
+sudo mv crane /usr/local/bin/
+crane version
+```
+
+Create the ECR repository and authenticate:
+
+```bash
+export AWS_REGION=us-east-1
+export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+export MODEL_REPO=models/qwen25-3b
+export MODEL_IMAGE_URI=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${MODEL_REPO}:v1
+
+aws ecr describe-repositories --repository-names ${MODEL_REPO} --region ${AWS_REGION} || \
+aws ecr create-repository --repository-name ${MODEL_REPO} --region ${AWS_REGION}
+
+aws ecr get-login-password --region ${AWS_REGION} | \
+crane auth login ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com -u AWS --password-stdin
+```
+
+Package and push the model as an OCI artifact:
+
+```bash
 crane append \
-  --new_tag $ACCOUNT.dkr.ecr.$REGION.amazonaws.com/models/qwen25-3b:v1 \
+  --new_tag ${MODEL_IMAGE_URI} \
   --new_layer <(tar -C ./qwen25-3b -cf - .) \
   --platform linux/amd64
 ```
 
+Verify the image exists:
+
 ```bash
-kubectl apply -f examples/kubernetes/base-deployments/01-model-storage/03-oci-volume-mount.yaml -n demo-examples
+aws ecr list-images --repository-name ${MODEL_REPO} --region ${AWS_REGION}
 ```
+
+For a quick demo, you can avoid editing the manifest on disk and replace the placeholder inline:
+
+```bash
+sed 's|<AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/models/qwen25-3b:v1|023890853822.dkr.ecr.us-east-1.amazonaws.com/models/qwen25-3b:v1|' \
+examples/kubernetes/base-deployments/01-model-storage/03-oci-volume-mount.yaml | kubectl apply -n demo-examples -f -
+```
+
+Recommended demo validation flow:
+
+```bash
+kubectl get pods -n demo-examples -w
+kubectl scale deployment/vllm-gpu-oci --replicas=0 -n demo-examples
+kubectl scale deployment/vllm-gpu-oci --replicas=1 -n demo-examples
+```
+
+Functional validation:
+
+```bash
+kubectl port-forward -n demo-examples deploy/vllm-gpu-oci 8000:8000
+
+curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8000/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d @/home/gmgalvan/demo-polymarket-sgnal/examples/kubernetes/base-deployments/03-vllm-qwen25-3b-gpu/request.chat-test.json
+```
+
+This validates the main idea of the strategy:
+- no model downloader container
+- no EFS dependency
+- model delivered as an immutable OCI artifact
+- runtime can reuse cached image layers on pod recreation
 
 ---
 
