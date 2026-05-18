@@ -40,6 +40,7 @@ run_terraform_apply \
 
 run_terraform_apply "infrastructure/lv-3-cluster-services/efs"
 run_terraform_apply "infrastructure/lv-3-cluster-services/karpenter"
+run_terraform_apply "infrastructure/lv-3-cluster-services/cert-manager"
 run_terraform_apply "infrastructure/lv-3-cluster-services/nvidia-device-plugin"
 run_terraform_apply "infrastructure/lv-3-cluster-services/neuron-device-plugin"
 run_terraform_apply "infrastructure/lv-3-cluster-services/platform-observability/01-monitoring"
@@ -47,7 +48,6 @@ run_terraform_apply "infrastructure/lv-3-cluster-services/platform-observability
 run_terraform_apply "infrastructure/lv-3-cluster-services/platform-observability/04-gpu-metrics"
 run_terraform_apply "infrastructure/lv-3-cluster-services/platform-observability/05-neuron-monitor"
 
-run_terraform_apply "infrastructure/lv-4-inference-services/cert-manager"
 run_terraform_apply "infrastructure/lv-4-inference-services/kserve"
 run_terraform_apply "infrastructure/lv-4-inference-services/kuberay"
 

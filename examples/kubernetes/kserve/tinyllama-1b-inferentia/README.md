@@ -29,7 +29,7 @@ KServe does not provide a Neuron-ready image. You must build and push the same
 image used in example 04:
 
 ```bash
-cd kubernetes/examples/manual-inference-deployment/04-vllm-neuron-tinyllama-1b-inf2
+cd examples/kubernetes/base-deployments/04-vllm-neuron-tinyllama-1b-inf2
 AWS_REGION=us-east-1 \
 ECR_REPO=vllm-neuron \
 IMAGE_TAG=latest \
@@ -56,6 +56,14 @@ Replace the placeholder in `inferenceservice.yaml`:
 image: <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/vllm-neuron:latest
 ```
 
+For a quick demo, you can avoid editing the manifest on disk and replace the
+placeholder inline when applying:
+
+```bash
+sed 's|<AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/vllm-neuron:latest|023890853822.dkr.ecr.us-east-1.amazonaws.com/vllm-neuron:latest|' \
+examples/kubernetes/kserve/tinyllama-1b-inferentia/inferenceservice.yaml | kubectl apply -n demo-examples -f -
+```
+
 ### 4. Cluster access
 
 ```bash
@@ -66,8 +74,10 @@ kubectl get nodepools   # should show neuron-inference
 ## Deploy
 
 ```bash
-kubectl apply -f kubernetes/examples/00-namespace.yaml
-kubectl apply -k kubernetes/examples/kserve/tinyllama-1b-inferentia
+kubectl apply -f examples/kubernetes/00-namespace.yaml
+
+sed 's|<AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/vllm-neuron:latest|023890853822.dkr.ecr.us-east-1.amazonaws.com/vllm-neuron:latest|' \
+examples/kubernetes/kserve/tinyllama-1b-inferentia/inferenceservice.yaml | kubectl apply -n demo-examples -f -
 ```
 
 Watch the InferenceService status:
@@ -112,7 +122,7 @@ curl http://127.0.0.1:8080/health
 
 curl http://127.0.0.1:8080/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -d @kubernetes/examples/kserve/tinyllama-1b-inferentia/request.chat-test.json
+  -d @examples/kubernetes/kserve/tinyllama-1b-inferentia/request.chat-test.json
 ```
 
 ## KServe vs raw Deployment comparison
@@ -136,7 +146,7 @@ which uses `8000`. The `--port=8080` arg is passed to vLLM to match this convent
 ## Cleanup
 
 ```bash
-kubectl delete -k kubernetes/examples/kserve/tinyllama-1b-inferentia
+kubectl delete inferenceservice tinyllama-1b-inferentia -n demo-examples
 kubectl delete secret huggingface-token -n demo-examples --ignore-not-found
 ```
 

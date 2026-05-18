@@ -87,9 +87,12 @@ spec:
             aws.amazon.com/neuroncore: "1"
           limits:
             cpu: "3"
+            memory: "14Gi"
             aws.amazon.com/neuroncore: "1"
-          # No memory limit — Neuron compilation needs peak RAM beyond any
-          # safe cgroup limit. See README for details.
+          # KServe/cluster defaults may inject a low memory limit if one is not
+          # set explicitly. Keep the limit above the request so the generated
+          # predictor Deployment remains valid while still leaving headroom for
+          # Neuron compilation.
         startupProbe:
           httpGet:
             path: /health

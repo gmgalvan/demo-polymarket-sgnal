@@ -3,7 +3,7 @@ terraform {
 
   backend "s3" {
     bucket       = "352-demo-dev-s3b-tfstate-backend"
-    key          = "dev/lv-4-inference-services/cert-manager/terraform.tfstate"
+    key          = "dev/lv-3-cluster-services/cert-manager/terraform.tfstate"
     region       = "us-east-1"
     use_lockfile = true
     encrypt      = true

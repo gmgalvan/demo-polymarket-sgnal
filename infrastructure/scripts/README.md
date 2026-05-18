@@ -17,13 +17,13 @@ Applies all infrastructure stacks in dependency order:
 - `lv-2-core-compute/opensearch`
 - `lv-3-cluster-services/efs`
 - `lv-3-cluster-services/karpenter`
+- `lv-3-cluster-services/cert-manager`
 - `lv-3-cluster-services/nvidia-device-plugin`
 - `lv-3-cluster-services/neuron-device-plugin`
 - `lv-3-cluster-services/platform-observability/01-monitoring`
 - `lv-3-cluster-services/platform-observability/02-logging`
 - `lv-3-cluster-services/platform-observability/04-gpu-metrics`
 - `lv-3-cluster-services/platform-observability/05-neuron-monitor`
-- `lv-4-inference-services/cert-manager`
 - `lv-4-inference-services/kserve`
 - `lv-4-inference-services/kuberay`
 - `lv-4-inference-services/nim-operator` when `NGC_API_KEY` is set
@@ -42,7 +42,6 @@ Destroys all infrastructure stacks in reverse dependency order:
 - `lv-4-inference-services/nim-operator`
 - `lv-4-inference-services/kuberay`
 - `lv-4-inference-services/kserve`
-- `lv-4-inference-services/cert-manager`
 - `lv-3-cluster-services/platform-observability/03-tracing`
 - `lv-5-app-observability/01-langfuse`
 - `lv-3-cluster-services/platform-observability/05-neuron-monitor`
@@ -51,6 +50,7 @@ Destroys all infrastructure stacks in reverse dependency order:
 - `lv-3-cluster-services/platform-observability/01-monitoring`
 - `lv-3-cluster-services/neuron-device-plugin`
 - `lv-3-cluster-services/nvidia-device-plugin`
+- `lv-3-cluster-services/cert-manager`
 - `lv-3-cluster-services/karpenter`
 - `lv-3-cluster-services/efs`
 - `lv-2-core-compute/opensearch`

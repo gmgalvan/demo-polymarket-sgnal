@@ -7,7 +7,6 @@ state, providers, and lifecycle.
 
 | Stack | Path | Purpose |
 |---|---|---|
-| `cert-manager` | `infrastructure/lv-4-inference-services/cert-manager/` | TLS certs for KServe webhooks |
 | `kserve` | `infrastructure/lv-4-inference-services/kserve/` | InferenceService CRD and serving controller |
 | `kuberay` | `infrastructure/lv-4-inference-services/kuberay/` | RayCluster/RayJob/RayService controller |
 | `nim-operator` | `infrastructure/lv-4-inference-services/nim-operator/` | NVIDIA NIM Operator and NGC auth secret |
@@ -24,23 +23,23 @@ Recommended before inference workloads:
 
 ```bash
 lv-3-cluster-services/karpenter
+lv-3-cluster-services/cert-manager
 ```
 
 Required order inside `lv-4`:
 
-1. `cert-manager`
-2. `kserve`
-3. `kuberay`
-4. `nim-operator` (optional, requires `NGC_API_KEY`)
+1. `kserve`
+2. `kuberay`
+3. `nim-operator` (optional, requires `NGC_API_KEY`)
 
 ## Usage
 
 ```bash
-cd infrastructure/lv-4-inference-services/cert-manager
+cd infrastructure/lv-3-cluster-services/cert-manager
 terraform init
 terraform apply
 
-cd ../kserve
+cd ../../lv-4-inference-services/kserve
 terraform init
 terraform apply
 
