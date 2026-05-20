@@ -58,6 +58,16 @@ output "l40s_instance_type" {
   value       = var.l40s_instance_type
 }
 
+output "gpu_max_instance_types" {
+  description = "Configured allowed instance types for the Karpenter gpu-max node pool."
+  value       = var.gpu_max_instance_types
+}
+
+output "gpu_nim_instance_types" {
+  description = "Configured allowed instance types for the Karpenter gpu-nim node pool."
+  value       = var.gpu_nim_instance_types
+}
+
 output "inferentia_instance_type" {
   description = "Configured Inferentia instance type for Neuron node group."
   value       = var.inferentia_instance_type

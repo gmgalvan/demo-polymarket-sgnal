@@ -4,10 +4,11 @@
 #
 # The NIM Operator watches this resource, spins up a temporary init job that
 # pulls the model from nvcr.io, and marks the cache as Ready when complete.
-# All subsequent NIMService pods mount this PVC read-only.
+# The paired NIMService reuses this PVC so it does not have to re-download model
+# artifacts on each restart.
 #
-# Model: meta/llama3-8b-instruct
-#   - 8B params, fits on a single g6.xlarge (24 GB VRAM)
+# Model: meta/llama-3.1-8b-instruct
+#   - 8B params, fits on a single 1-GPU node class in this repo
 #   - OpenAI-compatible chat endpoint out of the box
 #   - Optimized with TensorRT-LLM inside the NIM container
 #
@@ -20,26 +21,34 @@
 apiVersion: apps.nvidia.com/v1alpha1
 kind: NIMCache
 metadata:
-  name: llama3-8b-instruct-cache
+  name: llama31-8b-instruct-cache
 spec:
+  nodeSelector:
+    workload: gpu-nim
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
   source:
     ngc:
       # NGC model path — matches the NIM container published by NVIDIA
-      modelPuller: nvcr.io/nim/meta/llama3-8b-instruct:1.0.0
+      modelPuller: nvcr.io/nim/meta/llama-3.1-8b-instruct:2.0.3
+      pullSecret: ngc-secret
       # Secret created by lv-4 Terraform (or manually, see README)
       authSecret: ngc-api-secret
       model:
-        engine: tensorrt_llm
+        engine: vllm
         tensorParallelism: "1"
-        # Pull only the profile optimized for fp8 on A10G/L40S (g6/g5 nodes).
-        # Reduces download size from ~30 GB to ~9 GB.
+        # Use the exact profile ID from the image manifest for the 24 GB
+        # single-GPU vLLM path. Friendly profile aliases are not accepted by
+        # this container version for Llama 3.1.
         profiles:
-          - bf16-tp1-throughput
+          - a28963301b18077db3454d5eb21f5678304936c5a425ddc552443de1f5449f2a
   storage:
     pvc:
       create: true
-      storageClassName: gp3
+      storageClass: efs-sc-nim
       size: 30Gi
-      # ReadWriteOnce is fine — cache is written once, then read by one pod at a time
-      accessModes:
-        - ReadWriteOnce
+      # Shared cache is fine here; NIM docs support RWX PVCs for operator-managed cache.
+      volumeAccessMode: ReadWriteMany

@@ -16,7 +16,7 @@ resource "helm_release" "nvidia_device_plugin" {
                   {
                     key      = "workload"
                     operator = "In"
-                    values   = ["gpu"]
+                    values   = ["gpu", "gpu-nim"]
                   }
                 ]
               }
@@ -26,9 +26,6 @@ resource "helm_release" "nvidia_device_plugin" {
       }
       gfd = {
         enabled = false
-      }
-      nodeSelector = {
-        workload = "gpu"
       }
       tolerations = [
         {

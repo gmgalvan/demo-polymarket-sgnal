@@ -7,21 +7,21 @@
 # The NIM Operator translates this CRD into a Deployment + Service + HPA.
 # You never write those resources manually — the operator owns them.
 #
-# This NIMService lands on gpu-inference Karpenter NodePool nodes because:
-#   - nodeSelector: workload=gpu  → matches NodePool label
+# This NIMService lands on the dedicated NIM GPU Karpenter NodePool because:
+#   - nodeSelector: workload=gpu-nim → matches NodePool label
 #   - tolerations: nvidia.com/gpu → matches NodePool taint
 #   - resources: nvidia.com/gpu:1 → triggers Karpenter to provision a GPU node
 #
 # The agent (LiteLLM gateway) reaches this service at:
-#   http://llama3-8b-instruct:8000/v1/chat/completions
-# with model name "meta/llama3-8b-instruct"
+#   http://llama31-8b-instruct:8000/v1/chat/completions
+# with model name "meta/llama-3.1-8b-instruct"
 apiVersion: apps.nvidia.com/v1alpha1
 kind: NIMService
 metadata:
-  name: llama3-8b-instruct
+  name: llama31-8b-instruct
   labels:
     app.kubernetes.io/name: nim
-    app.kubernetes.io/instance: llama3-8b-instruct
+    app.kubernetes.io/instance: llama31-8b-instruct
     app.kubernetes.io/component: inference
     app.kubernetes.io/part-of: demo-examples
   annotations:
@@ -29,13 +29,25 @@ metadata:
     prometheus.io/port: "8000"
     prometheus.io/path: "/metrics"
 spec:
-  # Reference the NIMCache created above — operator mounts the PVC automatically
-  nimCacheName: llama3-8b-instruct-cache
+  image:
+    repository: nvcr.io/nim/meta/llama-3.1-8b-instruct
+    tag: "2.0.3"
+    pullPolicy: IfNotPresent
+    pullSecrets:
+      - ngc-secret
   authSecret: ngc-api-secret
+  env:
+    - name: NIM_MAX_MODEL_LEN
+      value: "32768"
+  storage:
+    nimCache:
+      name: llama31-8b-instruct-cache
+      profile: "a28963301b18077db3454d5eb21f5678304936c5a425ddc552443de1f5449f2a"
+    readOnly: false
 
-  # ── Scheduling: GPU node (Karpenter NodePool gpu-inference) ─────────────────
+  # ── Scheduling: GPU node (Karpenter NodePool gpu-nim) ───────────────────────
   nodeSelector:
-    workload: gpu
+    workload: gpu-nim
   tolerations:
     - key: nvidia.com/gpu
       operator: Equal
@@ -61,21 +73,3 @@ spec:
     service:
       type: ClusterIP
       port: 8000
-
-  # ── Readiness: NIM exposes /v1/health/ready (OpenAI health convention) ───────
-  livenessProbe:
-    httpGet:
-      path: /v1/health/live
-      port: 8000
-    initialDelaySeconds: 60
-    periodSeconds: 20
-    timeoutSeconds: 10
-    failureThreshold: 10
-  readinessProbe:
-    httpGet:
-      path: /v1/health/ready
-      port: 8000
-    initialDelaySeconds: 60
-    periodSeconds: 10
-    timeoutSeconds: 10
-    failureThreshold: 30

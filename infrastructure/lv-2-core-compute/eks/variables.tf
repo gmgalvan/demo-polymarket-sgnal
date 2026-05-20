@@ -89,9 +89,42 @@ variable "core_node_max_size" {
 }
 
 variable "l40s_instance_type" {
-  description = "Allowed L40S-capable EC2 instance types for the GPU node group."
+  description = "Allowed GPU EC2 instance types for the Karpenter gpu-inference node pool."
   type        = list(string)
-  default     = ["g6e.xlarge", "g6e.2xlarge", "g6e.4xlarge"]
+  default = [
+    "g6.xlarge",
+    "g6.2xlarge",
+    "g5.xlarge",
+    "g5.2xlarge",
+    "g6e.xlarge",
+    "g6e.2xlarge",
+  ]
+}
+
+variable "gpu_max_instance_types" {
+  description = "Allowed larger GPU EC2 instance types for the Karpenter gpu-max node pool."
+  type        = list(string)
+  default = [
+    "g6.2xlarge",
+    "g6.4xlarge",
+    "g5.2xlarge",
+    "g5.4xlarge",
+    "g6e.2xlarge",
+    "g6e.4xlarge",
+  ]
+}
+
+variable "gpu_nim_instance_types" {
+  description = "Allowed GPU EC2 instance types for the dedicated Karpenter gpu-nim node pool."
+  type        = list(string)
+  default = [
+    "g5.2xlarge",
+    "g5.4xlarge",
+    "g6.2xlarge",
+    "g6.4xlarge",
+    "g6e.2xlarge",
+    "g6e.4xlarge",
+  ]
 }
 
 variable "l40s_node_min_size" {

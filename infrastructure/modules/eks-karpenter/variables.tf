@@ -70,6 +70,16 @@ variable "l40s_instance_type" {
   type        = list(string)
 }
 
+variable "gpu_max_instance_types" {
+  description = "Allowed instance types for the larger GPU Karpenter node pool."
+  type        = list(string)
+}
+
+variable "gpu_nim_instance_types" {
+  description = "Allowed instance types for the dedicated NIM GPU Karpenter node pool."
+  type        = list(string)
+}
+
 variable "inferentia_instance_types" {
   description = "Allowed instance types for the Inferentia Karpenter node pool."
   type        = list(string)

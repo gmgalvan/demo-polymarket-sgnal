@@ -8,8 +8,22 @@ resource "helm_release" "dcgm_exporter" {
 
   values = [
     yamlencode({
-      nodeSelector = {
-        workload = "gpu"
+      affinity = {
+        nodeAffinity = {
+          requiredDuringSchedulingIgnoredDuringExecution = {
+            nodeSelectorTerms = [
+              {
+                matchExpressions = [
+                  {
+                    key      = "workload"
+                    operator = "In"
+                    values   = ["gpu", "gpu-nim"]
+                  }
+                ]
+              }
+            ]
+          }
+        }
       }
       tolerations = [
         {

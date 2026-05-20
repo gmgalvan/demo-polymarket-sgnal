@@ -54,3 +54,25 @@ module "efs" {
 
   tags = local.tags
 }
+
+resource "kubectl_manifest" "storage_class_nim" {
+  yaml_body = yamlencode({
+    apiVersion = "storage.k8s.io/v1"
+    kind       = "StorageClass"
+    metadata = {
+      name = "efs-sc-nim"
+    }
+    provisioner = "efs.csi.aws.com"
+    parameters = {
+      provisioningMode = "efs-ap"
+      fileSystemId     = module.efs.file_system_id
+      directoryPerms   = "770"
+      uid              = "1000"
+      gid              = "2000"
+    }
+    reclaimPolicy     = "Retain"
+    volumeBindingMode = "Immediate"
+  })
+
+  depends_on = [module.efs]
+}

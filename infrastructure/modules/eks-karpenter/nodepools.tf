@@ -432,6 +432,132 @@ resource "kubectl_manifest" "node_pool_gpu" {
   depends_on = [kubectl_manifest.ec2_node_class_gpu]
 }
 
+# ─── NodePool: GPU Large / NIM ───────────────────────────────────────────────
+# Larger GPU nodes for workloads that need more CPU/RAM headroom alongside a
+# single GPU, such as NVIDIA NIM-based services. This keeps the general GPU lane
+# cheaper while giving heavy GPU services a dedicated scheduling target.
+resource "kubectl_manifest" "node_pool_gpu_max" {
+  count = var.enable_karpenter_nodepools ? 1 : 0
+
+  yaml_body = yamlencode({
+    apiVersion = "karpenter.sh/v1"
+    kind       = "NodePool"
+    metadata = {
+      name = "gpu-max"
+    }
+    spec = {
+      template = {
+        metadata = {
+          labels = {
+            accelerator = "nvidia-l40s"
+            workload    = "gpu-max"
+          }
+        }
+        spec = {
+          nodeClassRef = {
+            group = "karpenter.k8s.aws"
+            kind  = "EC2NodeClass"
+            name  = "gpu-inference"
+          }
+          taints = [
+            {
+              key    = "nvidia.com/gpu"
+              value  = "true"
+              effect = "NoSchedule"
+            }
+          ]
+          requirements = [
+            {
+              key      = "kubernetes.io/arch"
+              operator = "In"
+              values   = ["amd64"]
+            },
+            {
+              key      = "node.kubernetes.io/instance-type"
+              operator = "In"
+              values   = var.gpu_max_instance_types
+            },
+            {
+              key      = "karpenter.sh/capacity-type"
+              operator = "In"
+              values   = ["on-demand"]
+            }
+          ]
+        }
+      }
+      disruption = {
+        consolidationPolicy = "WhenEmptyOrUnderutilized"
+        consolidateAfter    = "10m"
+      }
+    }
+  })
+
+  depends_on = [kubectl_manifest.ec2_node_class_gpu]
+}
+
+# ─── NodePool: GPU NIM ───────────────────────────────────────────────────────
+# Dedicated GPU lane for NVIDIA NIM-based services. Uses the same GPU AMI and
+# EC2NodeClass as the general GPU lanes, but limits scheduling to larger
+# 1-GPU shapes so it does not interfere with cheaper demo workloads.
+resource "kubectl_manifest" "node_pool_gpu_nim" {
+  count = var.enable_karpenter_nodepools ? 1 : 0
+
+  yaml_body = yamlencode({
+    apiVersion = "karpenter.sh/v1"
+    kind       = "NodePool"
+    metadata = {
+      name = "gpu-nim"
+    }
+    spec = {
+      template = {
+        metadata = {
+          labels = {
+            accelerator = "nvidia-l40s"
+            workload    = "gpu-nim"
+          }
+        }
+        spec = {
+          nodeClassRef = {
+            group = "karpenter.k8s.aws"
+            kind  = "EC2NodeClass"
+            name  = "gpu-inference"
+          }
+          taints = [
+            {
+              key    = "nvidia.com/gpu"
+              value  = "true"
+              effect = "NoSchedule"
+            }
+          ]
+          requirements = [
+            {
+              key      = "kubernetes.io/arch"
+              operator = "In"
+              values   = ["amd64"]
+            },
+            {
+              key      = "node.kubernetes.io/instance-type"
+              operator = "In"
+              values   = var.gpu_nim_instance_types
+            },
+            {
+              key      = "karpenter.sh/capacity-type"
+              operator = "In"
+              values   = ["on-demand"]
+            }
+          ]
+        }
+      }
+      disruption = {
+        consolidationPolicy = "WhenEmptyOrUnderutilized"
+        consolidateAfter    = "10m"
+      }
+    }
+  })
+
+  depends_on = [kubectl_manifest.ec2_node_class_gpu]
+}
+
 # ─── NodePool: Inferentia2 (AWS Neuron) ───────────────────────────────────────
 # Nodes for AWS Inferentia2 inference. Karpenter launches them only when a pod
 # tolerates aws.amazon.com/neuron:NoSchedule and requests aws.amazon.com/neuroncore.

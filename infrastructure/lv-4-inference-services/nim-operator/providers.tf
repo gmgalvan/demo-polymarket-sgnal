@@ -36,8 +36,23 @@ data "terraform_remote_state" "eks" {
   }
 }
 
+data "terraform_remote_state" "security_and_config" {
+  backend = "s3"
+
+  config = {
+    bucket  = var.security_and_config_state_bucket
+    key     = var.security_and_config_state_key
+    region  = var.security_and_config_state_region
+    encrypt = true
+  }
+}
+
 provider "aws" {
   region = var.aws_region
+}
+
+data "aws_secretsmanager_secret_version" "inference_api_keys" {
+  secret_id = data.terraform_remote_state.security_and_config.outputs.external_secret_names["inference"]
 }
 
 data "aws_eks_cluster" "this" {
