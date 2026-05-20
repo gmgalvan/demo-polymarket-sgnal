@@ -38,6 +38,7 @@ module "eks_karpenter" {
 
   # Default instance types used by the demo NodePools.
   core_node_instance_type   = data.terraform_remote_state.eks.outputs.core_node_instance_type
+  x86_core_instance_types   = data.terraform_remote_state.eks.outputs.x86_core_karpenter_instance_types
   l40s_instance_type        = data.terraform_remote_state.eks.outputs.l40s_instance_type
   inferentia_instance_types = data.terraform_remote_state.eks.outputs.inferentia_karpenter_instance_types
 

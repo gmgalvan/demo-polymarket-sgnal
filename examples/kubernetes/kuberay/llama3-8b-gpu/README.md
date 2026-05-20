@@ -1,62 +1,28 @@
-# KubeRay — Llama 3 8B on GPU via Ray Serve + vLLM
+# KubeRay — Llama 3.1 8B on GPU via Ray Serve LLM
 
-Deploys `meta-llama/Llama-3.1-8B-Instruct` using **Ray Serve** as the serving
-framework and **vLLM** as the inference engine. The `RayService` CRD manages
-the full cluster lifecycle — head node, GPU workers, rolling updates, and the
-Serve application — as a single Kubernetes resource.
+Deploys `meta-llama/Llama-3.1-8B-Instruct` using the current **Ray Serve LLM**
+pattern on **KubeRay**.
 
 - Model: `meta-llama/Llama-3.1-8B-Instruct`
-- Hardware lane: `gpu-inference` Karpenter NodePool (workers), `graviton` (head)
-- API: OpenAI-compatible on port 8000 (same as vLLM, NIM, KServe)
+- Hardware lane: `gpu-inference`
+- API: OpenAI-compatible on port `8000`
 
-## How it differs from the other examples
+## What changed
 
-| | manual vLLM (03) | NIM Operator | KServe | **KubeRay (this)** |
-|---|---|---|---|---|
-| You manage | Deployment + Service | NIMCache + NIMService | InferenceService | RayService |
-| Multi-replica autoscaling | HPA (external) | NIMService replicas | KServe autoscaler | Ray Serve built-in |
-| Scale-to-zero | No | No | Yes (Knative) | Yes (minReplicas: 0) |
-| Distributed workers | No | No | No | **Yes** |
-| Rolling update | kubectl rollout | Operator-managed | Revision-based | In-place, zero-downtime |
-| Model format | Any (HF Hub) | NIM containers only | Any (S3/HF) | Any (HF Hub) |
+This example now uses the official Serve LLM entrypoint:
 
-**When to choose KubeRay:**
-- You need autoscaling at the GPU-replica level (not just pod replicas)
-- Model is too large for one GPU and needs tensor/pipeline parallelism across workers
-- You want a unified framework for both serving and batch jobs (RayJob for fine-tuning)
+- `import_path: ray.serve.llm:build_openai_app`
+- official image:
+  - `rayproject/ray-llm:2.52.0-py311-cu128`
 
-## Architecture
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│  RayService: llama3-8b-ray                                   │
-│                                                              │
-│  ┌─────────────────────────┐    ┌────────────────────────┐  │
-│  │  Head Node (ARM/Gravi.) │    │  Worker Node (GPU)     │  │
-│  │  - GCS / control store  │    │  - VLLMDeployment      │  │
-│  │  - Serve controller     │───▶│  - 1 replica per GPU   │  │
-│  │  - HTTP proxy :8000     │    │  - vLLM engine         │  │
-│  │  ~$0.04/hr              │    │  ~$1.00/hr (g6.xlarge) │  │
-│  └─────────────────────────┘    └────────────────────────┘  │
-│                                          ▲                   │
-│                              Karpenter provisions            │
-│                              GPU node on first request       │
-└──────────────────────────────────────────────────────────────┘
-              │
-              ▼  ClusterIP :8000 (OpenAI-compatible)
-        LiteLLM Gateway  →  Strands Agent
-```
-
-The head node runs on a cheap ARM/Graviton instance 24/7.  GPU workers scale
-from 0 to 4 based on incoming request queue depth — Karpenter provisions the
-`g6.xlarge` nodes as Ray Serve autoscales replicas up.
+That avoids the older custom `serve_vllm.py` wrapper pattern and avoids a
+custom ECR build for the GPU example.
 
 ## Prerequisites
 
 ### 1. KubeRay operator installed
 
 ```bash
-# Installed by lv-4-inference-services Terraform
 kubectl get pods -n kuberay-system
 kubectl get crd | grep ray
 ```
@@ -64,54 +30,71 @@ kubectl get crd | grep ray
 ### 2. Cluster access
 
 ```bash
-aws eks update-kubeconfig --region us-east-1 --name <your-cluster-name>
-kubectl get nodepools   # should show gpu-inference and graviton
+aws eks update-kubeconfig --region us-east-1 --name 352-demo-dev-eks
+kubectl get nodepools
 ```
 
-### 3. (Optional) HuggingFace token for gated models
+You should see at least:
 
-Llama 3 requires accepting the license on HuggingFace first, then:
+- `gpu-inference`
+- `arm-general`
+- `neuron-inference`
+
+### 3. Hugging Face token for gated model access
+
+`meta-llama/Llama-3.1-8B-Instruct` is gated on Hugging Face.
+
+If you already have the token in AWS Secrets Manager at
+`352-demo/dev/inference/api-keys`, create the Kubernetes secret used by this
+example:
 
 ```bash
-kubectl create secret generic hf-token \
-  --from-literal=token=hf_xxxx... \
-  -n demo-examples
+HF_TOKEN=$(aws secretsmanager get-secret-value \
+  --secret-id 352-demo/dev/inference/api-keys \
+  --region us-east-1 \
+  --query SecretString \
+  --output text | jq -r '.huggingface_api_key')
+
+kubectl create secret generic huggingface-token \
+  --from-literal=token="${HF_TOKEN}" \
+  -n demo-examples \
+  --dry-run=client -o yaml | kubectl apply -f -
 ```
 
-Uncomment the `HF_TOKEN` env var in `ray-service.yaml` to use it.
+Verify:
+
+```bash
+kubectl get secret huggingface-token -n demo-examples
+```
 
 ## Deploy
 
 ```bash
-kubectl apply -f kubernetes/examples/00-namespace.yaml
-kubectl apply -k kubernetes/examples/kuberay/llama3-8b-gpu
+kubectl delete rayservice llama3-8b-ray -n demo-examples --ignore-not-found
+kubectl apply -f examples/kubernetes/00-namespace.yaml
+kubectl apply -k examples/kubernetes/kuberay/llama3-8b-gpu
 ```
 
-Watch the cluster come up:
+Watch the deployment:
 
 ```bash
-# RayService transitions: WaitForServeDeploymentReady → Running
 kubectl get rayservice llama3-8b-ray -n demo-examples -w
-
-# Watch the head pod start first (ARM node, fast)
-kubectl get pods -n demo-examples -l app=llama3-8b-ray-head -w
-
-# Then the GPU worker pod (Karpenter provisions a g6.xlarge ~2-3 min)
-kubectl get pods -n demo-examples -l app=llama3-8b-ray-worker -w
-
-# Karpenter node provisioning
+kubectl get pods -n demo-examples -w
 kubectl get nodeclaims -w
-kubectl get nodes -l workload=gpu
 ```
 
-Ray Dashboard (useful for debugging serve app status):
+Expected flow:
 
-```bash
-kubectl port-forward -n demo-examples svc/llama3-8b-ray-head-svc 8265:8265
-# Open http://localhost:8265
-```
+1. KubeRay creates the RayService and RayCluster
+2. Karpenter provisions GPU-lane nodes
+3. The Ray head starts
+4. The GPU worker starts
+5. The model downloads and initializes
+6. `RayService` becomes healthy
 
 ## Verify
+
+When the service is up:
 
 ```bash
 kubectl port-forward -n demo-examples svc/llama3-8b-ray-serve-svc 8000:8000
@@ -120,60 +103,28 @@ kubectl port-forward -n demo-examples svc/llama3-8b-ray-serve-svc 8000:8000
 In another terminal:
 
 ```bash
-# Health check
-curl http://127.0.0.1:8000/-/healthz
-
-# List models
 curl http://127.0.0.1:8000/v1/models
-
-# Chat completion
-curl http://127.0.0.1:8000/v1/chat/completions \
-  -H 'Content-Type: application/json' \
-  -d @kubernetes/examples/kuberay/llama3-8b-gpu/request.chat-test.json
 ```
-
-## Connect to LiteLLM gateway
-
-Add this model entry to the LiteLLM ConfigMap:
-
-```yaml
-model_list:
-  - model_name: llama-3.1-8b-ray
-    litellm_params:
-      model: openai/llama-3.1-8b-instruct
-      api_base: http://llama3-8b-ray-serve-svc.demo-examples.svc.cluster.local:8000/v1
-      api_key: "none"
-```
-
-The Strands agent references `llama-3.1-8b-ray` — it never knows whether the
-model runs on a single vLLM pod, NIM container, KServe predictor, or a Ray
-Serve cluster.
-
-## Autoscaling demo
-
-Ray Serve autoscales GPU worker replicas based on request queue depth.
-Each new replica triggers Karpenter to provision another `g6.xlarge` node.
 
 ```bash
-# Send concurrent requests to trigger scale-up
-for i in $(seq 1 50); do
-  curl -s http://127.0.0.1:8000/v1/chat/completions \
-    -H 'Content-Type: application/json' \
-    -d @kubernetes/examples/kuberay/llama3-8b-gpu/request.chat-test.json &
-done
-wait
-
-# Watch replicas scale up
-kubectl get rayservice llama3-8b-ray -n demo-examples -w
-kubectl get nodes -l workload=gpu   # more GPU nodes provisioned
+curl http://127.0.0.1:8000/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d @examples/kubernetes/kuberay/llama3-8b-gpu/request.chat-test.json
 ```
 
-After traffic drops, Ray Serve scales replicas back to 1 (or 0 with
-`minReplicas: 0`), and Karpenter terminates the idle GPU nodes.
+## Notes
+
+- This example uses the official `ray-llm` image and current Ray Serve LLM
+  pattern instead of the older custom wrapper approach.
+- This example was validated end-to-end on the current cluster using:
+  - `rayproject/ray-llm:2.52.0-py311-cu128`
+  - `gpu-inference` nodepool
+  - `huggingface-token` secret in `demo-examples`
+- First startup can take a while because the image is large and the model must
+  download from Hugging Face.
 
 ## Cleanup
 
 ```bash
-kubectl delete -k kubernetes/examples/kuberay/llama3-8b-gpu
-# GPU nodes drain and terminate automatically via Karpenter consolidation
+kubectl delete rayservice llama3-8b-ray -n demo-examples --ignore-not-found
 ```

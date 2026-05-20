@@ -54,7 +54,7 @@ output "node_security_group_id" {
 }
 
 output "l40s_instance_type" {
-  description = "Configured L40S instance type for GPU node group."
+  description = "Configured allowed L40S instance types for the GPU node group."
   value       = var.l40s_instance_type
 }
 
@@ -69,6 +69,11 @@ output "inferentia_karpenter_instance_types" {
 }
 
 output "core_node_instance_type" {
-  description = "Configured instance type for the ARM/core node group."
+  description = "Configured allowed instance types for the ARM/core node group."
   value       = var.core_node_instance_type
+}
+
+output "x86_core_karpenter_instance_types" {
+  description = "Allowed x86 CPU instance types for the Karpenter x86-core node pool."
+  value       = var.x86_core_karpenter_instance_types
 }

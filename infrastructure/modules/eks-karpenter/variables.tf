@@ -56,13 +56,18 @@ variable "karpenter_chart_version" {
 }
 
 variable "core_node_instance_type" {
-  description = "Default instance type for the ARM/core Karpenter node pool."
-  type        = string
+  description = "Allowed instance types for the ARM/core Karpenter node pool."
+  type        = list(string)
+}
+
+variable "x86_core_instance_types" {
+  description = "Allowed instance types for the x86 CPU Karpenter node pool."
+  type        = list(string)
 }
 
 variable "l40s_instance_type" {
-  description = "Default instance type for the GPU Karpenter node pool."
-  type        = string
+  description = "Allowed instance types for the GPU Karpenter node pool."
+  type        = list(string)
 }
 
 variable "inferentia_instance_types" {

@@ -66,7 +66,7 @@ module "eks" {
   eks_managed_node_groups = {
     core = {
       ami_type       = var.core_node_ami_type
-      instance_types = [var.core_node_instance_type]
+      instance_types = var.core_node_instance_type
       capacity_type  = "ON_DEMAND"
 
       min_size     = var.core_node_min_size
@@ -80,7 +80,7 @@ module "eks" {
 
     l40s = {
       ami_type       = "AL2023_x86_64_NVIDIA"
-      instance_types = [var.l40s_instance_type]
+      instance_types = var.l40s_instance_type
       capacity_type  = "ON_DEMAND"
 
       min_size     = var.l40s_node_min_size

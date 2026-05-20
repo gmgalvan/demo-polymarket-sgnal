@@ -1,98 +1,160 @@
-# ── RayService: TinyLlama 1B on Inferentia2 via Ray Serve + vLLM-Neuron ───────
+# ── RayService: TinyLlama 1B on Inferentia2 via AWS blueprint pattern ───────
 #
-# Architecture:
-#   Head node  →  ARM/Graviton (CPU node, same as GPU example)
-#   Worker(s)  →  Inferentia2 (inf2.xlarge, 2 NeuronCores), provisioned by Karpenter
+# This example follows the AWS AI on EKS `vllm-rayserve-inf2` blueprint pattern:
+#   - RayServe custom wrapper mounted from a ConfigMap
+#   - Ray 2.32.0
+#   - vLLM v0.5.0 patched for Neuron inside the published AWS image
+#   - OpenAI-compatible `/v1/chat/completions` endpoint served through Ray Serve
 #
-# Key differences vs the GPU RayService example:
-#   - Worker image: custom ECR image (vllm-neuron + Ray) — NOT the public ray-ml:gpu
-#   - Resource:     aws.amazon.com/neuroncore instead of nvidia.com/gpu
-#   - vLLM args:    --device=neuron, --tokenizer-mode=slow, --max-model-len=512, etc.
-#   - Compilation:  Neuron XLA compilation at first startup takes 20-45 min.
-#                   serviceUnhealthySecondThreshold is set to 2700 (45 min).
-#   - No scale-to-zero (minReplicas: 1): recompilation cost makes it impractical.
+# Differences from the upstream AWS blueprint:
+#   - head schedules on this repo's `x86-core` lane instead of AWS's
+#     `instanceType: x86-cpu-karpenter`
+#   - worker schedules on this repo's `workload=neuron` lane
+#   - model and resource settings are reduced for TinyLlama on `inf2.xlarge`
+#   - we use `aws.amazon.com/neuroncore` because that is the resource shape
+#     exercised elsewhere in this repo
 #
-# Prerequisites:
-#   1. Build Dockerfile.ray-neuron and push to ECR (see Dockerfile for commands)
-#   2. Update WORKER_IMAGE below with your ECR URI
-#   3. KubeRay operator installed (lv-4-inference-services Terraform)
-#   4. Karpenter NodePool neuron-inference from lv-3 Terraform
-#
-# Replace ALL occurrences of <AWS_ACCOUNT_ID> and <AWS_REGION> before applying.
+# Reference:
+#   https://awslabs.github.io/ai-on-eks/docs/blueprints/inference/framework-guides/Neuron/vllm-ray-inf2
 ---
-# ── Neuron serve script ───────────────────────────────────────────────────────
-# Mounted at /serve/serve_vllm_neuron.py in every Ray pod.
-# PYTHONPATH=/serve makes `import_path: serve_vllm_neuron:deployment` resolve.
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: ray-serve-vllm-neuron-script
+  name: tinyllama-neuron-vllm-serve-script
 data:
-  serve_vllm_neuron.py: |
-    """
-    Ray Serve deployment wrapping vLLM with AWS Neuron (Inferentia2) backend.
-
-    Neuron-specific constraints vs the GPU version:
-      - device="neuron"           → vLLM routes ops through Neuron SDK (torch-neuronx)
-      - tokenizer_mode="slow"     → fast (Rust) tokenizer has incompatibilities with Neuron
-      - tensor_parallel_size=1    → inf2.xlarge has 2 NeuronCores; TP=1 uses one core
-      - max_model_len=512         → Neuron XLA graph is compiled for a fixed sequence length;
-                                    longer sequences require recompilation
-      - max_num_seqs=1            → single concurrent sequence per replica on inf2.xlarge
-      - block_size=2048           → Neuron PagedAttention uses large block sizes
-      - swap_space=0              → no CPU swap on Inferentia
-      - guided_decoding_backend   → "lm-format-enforcer" is the only backend tested on Neuron
-
-    Compilation note:
-      The first time a worker starts, torch-neuronx compiles the model graph to a
-      Neuron Executable File (NEFF).  This takes 20-45 min for TinyLlama on inf2.xlarge.
-      Subsequent restarts load from the Neuron cache (~2-3 min).
-      The /tmp/neuron_cache volume persists cache across pod restarts on the same node.
-    """
+  vllm_serve.py: |
+    import logging
     import os
+    from typing import List, Optional
+
+    from fastapi import FastAPI
     from ray import serve
+    from starlette.requests import Request
+    from starlette.responses import JSONResponse, StreamingResponse
     from vllm.engine.arg_utils import AsyncEngineArgs
     from vllm.engine.async_llm_engine import AsyncLLMEngine
-    from vllm.entrypoints.openai.api_server import app
-
-    MODEL_ID = os.environ.get("MODEL_ID", "TinyLlama/TinyLlama-1.1B-Chat-v1.0")
-
-    @serve.deployment(
-        name="VLLMNeuronDeployment",
-        # Each replica uses one NeuronCore.  inf2.xlarge has 2 NeuronCores,
-        # so the node can host at most 2 replicas (set max_replicas: 2 below).
-        # Neuron compilation is expensive — do not set min_replicas: 0.
-        num_replicas=1,
-        ray_actor_options={
-            "resources": {"aws.amazon.com/neuroncore": 1},
-            "num_cpus": 2,
-        },
-        max_ongoing_requests=4,   # Neuron single-stream: keep queue short
+    from vllm.entrypoints.openai.protocol import (
+        ChatCompletionRequest,
+        ChatCompletionResponse,
+        ErrorResponse,
     )
+    from vllm.entrypoints.openai.serving_chat import OpenAIServingChat
+    from vllm.entrypoints.openai.serving_engine import LoRAModulePath
+    from vllm.transformers_utils.config import get_config
+
+    logger = logging.getLogger("ray.serve")
+    app = FastAPI()
+
+    def get_model_config(model_path: str) -> dict:
+        try:
+            config = get_config(model_path)
+            return {
+                "architecture": config.architectures[0] if config.architectures else None,
+                "vocab_size": config.vocab_size,
+                "hidden_size": config.hidden_size,
+                "num_hidden_layers": config.num_hidden_layers,
+                "num_attention_heads": config.num_attention_heads,
+            }
+        except Exception as exc:
+            logger.warning("Error reading model config: %s", exc)
+            return {}
+
+    @serve.deployment(name="VLLMDeployment")
     @serve.ingress(app)
-    class VLLMNeuronDeployment:
-        def __init__(self):
+    class VLLMDeployment:
+        def __init__(
+            self,
+            model: str,
+            served_model_name: str,
+            tensor_parallel_size: int,
+            max_num_seqs: int,
+            block_size: int,
+            max_model_len: int,
+            response_role: str = "assistant",
+            lora_modules: Optional[List[LoRAModulePath]] = None,
+            chat_template: Optional[str] = None,
+        ):
+            model_config = get_model_config(model)
+            logger.info("Model config: %s", model_config)
+
             engine_args = AsyncEngineArgs(
-                model=MODEL_ID,
-                served_model_name="tinyllama-1b-neuron",
+                model=model,
+                tensor_parallel_size=tensor_parallel_size,
+                max_num_seqs=max_num_seqs,
+                block_size=block_size,
+                max_model_len=max_model_len,
+                disable_log_requests=True,
                 device="neuron",
-                tokenizer_mode="slow",
-                tensor_parallel_size=1,
-                max_model_len=512,
-                max_num_seqs=1,
-                block_size=2048,
-                swap_space=0,
-                guided_decoding_backend="lm-format-enforcer",
+                dtype="auto",
+                trust_remote_code=False,
             )
+            logger.info("Starting with engine args: %s", engine_args)
+
+            self.engine_args = engine_args
+            self.served_model_name = served_model_name
+            self.response_role = response_role
+            self.lora_modules = lora_modules
+            self.chat_template = chat_template
+            self.openai_serving_chat = None
             self.engine = AsyncLLMEngine.from_engine_args(engine_args)
 
-            app.state.engine      = self.engine
-            app.state.engine_args = engine_args
+        @app.get("/v1/models")
+        async def get_models(self):
+            return JSONResponse(
+                content={
+                    "object": "list",
+                    "data": [
+                        {
+                            "id": self.served_model_name,
+                            "object": "model",
+                            "owned_by": "organization",
+                            "permission": [],
+                        }
+                    ],
+                }
+            )
 
-    deployment = VLLMNeuronDeployment.bind()
+        @app.post("/v1/chat/completions")
+        async def create_chat_completion(
+            self, request: ChatCompletionRequest, raw_request: Request
+        ):
+            if not self.openai_serving_chat:
+                model_config = await self.engine.get_model_config()
+                served_model_names = [self.served_model_name]
+                self.openai_serving_chat = OpenAIServingChat(
+                    self.engine,
+                    model_config,
+                    served_model_names,
+                    self.response_role,
+                    self.lora_modules,
+                    self.chat_template,
+                )
+
+            logger.info("Request: %s", request)
+            generator = await self.openai_serving_chat.create_chat_completion(
+                request, raw_request
+            )
+            if isinstance(generator, ErrorResponse):
+                return JSONResponse(
+                    content=generator.model_dump(), status_code=generator.code
+                )
+            if request.stream:
+                return StreamingResponse(
+                    content=generator, media_type="text/event-stream"
+                )
+            assert isinstance(generator, ChatCompletionResponse)
+            return JSONResponse(content=generator.model_dump())
+
+    deployment = VLLMDeployment.bind(
+        model=os.environ.get("MODEL_ID", "TinyLlama/TinyLlama-1.1B-Chat-v1.0"),
+        served_model_name=os.environ.get("SERVED_MODEL_NAME", "tinyllama-1b-neuron"),
+        tensor_parallel_size=int(os.environ.get("TENSOR_PARALLELISM", "2")),
+        max_num_seqs=int(os.environ.get("MAX_NUM_SEQS", "4")),
+        block_size=int(os.environ.get("BLOCK_SIZE", "512")),
+        max_model_len=int(os.environ.get("MAX_MODEL_LEN", "512")),
+    )
 
 ---
-# ── RayService ────────────────────────────────────────────────────────────────
 apiVersion: ray.io/v1
 kind: RayService
 metadata:
@@ -107,109 +169,156 @@ metadata:
     prometheus.io/port: "8080"
     prometheus.io/path: "/metrics"
 spec:
-  # ── Health thresholds ───────────────────────────────────────────────────────
-  # Neuron XLA compilation can take up to 45 min on first pod start.
-  # Set to 2700s (45 min) so the operator does not restart the cluster
-  # mid-compilation thinking it is unhealthy.
   serviceUnhealthySecondThreshold: 2700
   deploymentUnhealthySecondThreshold: 2700
-
-  # ── Serve application ───────────────────────────────────────────────────────
   serveConfigV2: |
     applications:
-      - name: tinyllama-neuron
-        route_prefix: /
-        import_path: serve_vllm_neuron:deployment
+      - name: vllm
+        import_path: vllm_serve:deployment
+        route_prefix: "/"
+        runtime_env:
+          env_vars:
+            MODEL_ID: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+            SERVED_MODEL_NAME: "tinyllama-1b-neuron"
+            TENSOR_PARALLELISM: "2"
+            BLOCK_SIZE: "512"
+            MAX_MODEL_LEN: "512"
+            MAX_NUM_SEQS: "4"
+            PORT: "8000"
+            NEURON_CC_FLAGS: "-O1"
+            LD_LIBRARY_PATH: "/home/ray/anaconda3/lib:$LD_LIBRARY_PATH"
+            NEURON_RT_LOG_LEVEL: "INFO"
         deployments:
-          - name: VLLMNeuronDeployment
-            num_replicas: 1
+          - name: VLLMDeployment
+            autoscaling_config:
+              min_replicas: 1
+              max_replicas: 1
+              target_num_ongoing_requests_per_replica: 1
             ray_actor_options:
-              resources:
-                aws.amazon.com/neuroncore: 1
               num_cpus: 2
-
-  # ── Ray cluster ─────────────────────────────────────────────────────────────
+              resources: {"neuron_cores": 2}
+              runtime_env:
+                env_vars:
+                  LD_LIBRARY_PATH: "/home/ray/anaconda3/lib:$LD_LIBRARY_PATH"
   rayClusterConfig:
     rayVersion: "2.32.0"
-
-    # ── Head node (ARM/Graviton) ───────────────────────────────────────────
-    # Same as the GPU example: GCS + Serve proxy on a cheap CPU node.
-    # No Neuron or GPU needed here.
+    enableInTreeAutoscaling: true
     headGroupSpec:
       rayStartParams:
         dashboard-host: "0.0.0.0"
         metrics-export-port: "8080"
-
+        num-cpus: "0"
       serviceType: ClusterIP
-
       template:
         metadata:
           labels:
             app: tinyllama-neuron-ray-head
         spec:
           nodeSelector:
-            kubernetes.io/arch: arm64
-            workload: graviton
-
+            kubernetes.io/arch: amd64
+            workload: x86-core
           containers:
             - name: ray-head
-              image: rayproject/ray-ml:2.32.0-aarch64
-              imagePullPolicy: IfNotPresent
-
+              image: public.ecr.aws/data-on-eks/vllm-ray2.32.0-inf2-llama3:latest
+              imagePullPolicy: Always
+              lifecycle:
+                preStop:
+                  exec:
+                    command: ["/bin/sh", "-c", "ray stop"]
               ports:
-                - name: gcs
-                  containerPort: 6379
-                - name: dashboard
-                  containerPort: 8265
-                - name: serve
-                  containerPort: 8000
-                - name: metrics
-                  containerPort: 8080
-
-              env:
-                - name: PYTHONPATH
-                  value: "/serve"
-
+                - containerPort: 6379
+                  name: gcs
+                - containerPort: 8265
+                  name: dashboard
+                - containerPort: 10001
+                  name: client
+                - containerPort: 8000
+                  name: serve
+                - containerPort: 8080
+                  name: metrics
+              volumeMounts:
+                - mountPath: /tmp/ray
+                  name: ray-logs
+                - name: vllm-script
+                  mountPath: /home/ray/vllm_serve.py
+                  subPath: vllm_serve.py
               resources:
                 requests:
-                  cpu: "2"
-                  memory: "8Gi"
+                  cpu: "1"
+                  memory: "4Gi"
                 limits:
-                  cpu: "4"
-                  memory: "16Gi"
-
-              volumeMounts:
-                - name: serve-script
-                  mountPath: /serve
-                - name: tmp
-                  mountPath: /tmp
-
+                  cpu: "2"
+                  memory: "6Gi"
+              env:
+                - name: MODEL_ID
+                  value: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+                - name: PORT
+                  value: "8000"
+                - name: LD_LIBRARY_PATH
+                  value: "/home/ray/anaconda3/lib:$LD_LIBRARY_PATH"
           volumes:
-            - name: serve-script
-              configMap:
-                name: ray-serve-vllm-neuron-script
-            - name: tmp
+            - name: ray-logs
               emptyDir: {}
-
-    # ── Worker group (Inferentia2) ─────────────────────────────────────────
-    # inf2.xlarge: 4 vCPU, 16 GiB RAM, 2 NeuronCores (1 NeuronDevice).
-    # Each worker replica uses 1 NeuronCore → max 2 replicas per inf2.xlarge.
-    # minReplicas: 1 because Neuron compilation cost makes scale-to-zero impractical.
+            - name: vllm-script
+              configMap:
+                name: tinyllama-neuron-vllm-serve-script
     workerGroupSpecs:
-      - groupName: neuron-workers
+      - groupName: inf2-group
         replicas: 1
-        minReplicas: 1   # Keep at least one compiled replica alive
-        maxReplicas: 2   # inf2.xlarge has 2 NeuronCores
-
-        rayStartParams: {}
-
+        minReplicas: 1
+        maxReplicas: 1
+        rayStartParams:
+          resources: '"{\"neuron_cores\": 2}"'
         template:
           metadata:
             labels:
               app: tinyllama-neuron-ray-worker
           spec:
-            # ── Inferentia2 node (Karpenter NodePool: neuron-inference) ───
+            containers:
+              - name: ray-worker
+                image: public.ecr.aws/data-on-eks/vllm-ray2.32.0-inf2-llama3:latest
+                imagePullPolicy: Always
+                lifecycle:
+                  preStop:
+                    exec:
+                      command: ["/bin/sh", "-c", "ray stop"]
+                resources:
+                  requests:
+                    cpu: "2"
+                    memory: "10Gi"
+                    aws.amazon.com/neuroncore: "2"
+                  limits:
+                    cpu: "3"
+                    memory: "14Gi"
+                    aws.amazon.com/neuroncore: "2"
+                env:
+                  - name: MODEL_ID
+                    value: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+                  - name: PORT
+                    value: "8000"
+                  - name: LD_LIBRARY_PATH
+                    value: "/home/ray/anaconda3/lib:$LD_LIBRARY_PATH"
+                  - name: NEURON_RT_LOG_LEVEL
+                    value: "INFO"
+                volumeMounts:
+                  - mountPath: /tmp/ray
+                    name: ray-logs
+                  - mountPath: /dev/shm
+                    name: dshm
+                  - name: vllm-script
+                    mountPath: /home/ray/vllm_serve.py
+                    subPath: vllm_serve.py
+            volumes:
+              - name: dshm
+                emptyDir:
+                  medium: Memory
+              - name: ray-logs
+                emptyDir: {}
+              - name: vllm-script
+                configMap:
+                  name: tinyllama-neuron-vllm-serve-script
             nodeSelector:
+              kubernetes.io/arch: amd64
               workload: neuron
             tolerations:
               - key: aws.amazon.com/neuron
@@ -219,58 +328,3 @@ spec:
               - key: aws.amazon.com/neuroncore
                 operator: Exists
                 effect: NoSchedule
-
-            containers:
-              - name: ray-worker
-                # Custom image: vllm-neuron base + Ray 2.32.0 (pinned).
-                # Build with Dockerfile.ray-neuron and push to ECR first.
-                image: <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/vllm-neuron-ray:2.32.0
-                imagePullPolicy: IfNotPresent
-
-                env:
-                  - name: PYTHONPATH
-                    value: "/serve"
-                  - name: MODEL_ID
-                    value: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-                  # Neuron cache: persist compiled graphs across restarts.
-                  # Without this, every pod restart triggers a 20-45 min recompile.
-                  - name: NEURON_COMPILE_CACHE_URL
-                    value: "/tmp/neuron_cache"
-                  # Disable Neuron runtime telemetry if network egress is restricted
-                  - name: NEURON_RT_LOG_LEVEL
-                    value: "ERROR"
-
-                resources:
-                  requests:
-                    cpu: "1500m"
-                    memory: "10Gi"
-                    aws.amazon.com/neuroncore: "1"
-                  limits:
-                    cpu: "3"
-                    # No memory limit intentionally: Neuron XLA compilation requires
-                    # a large peak allocation that is hard to bound safely.
-                    # See manual example 04 README for details.
-                    aws.amazon.com/neuroncore: "1"
-
-                volumeMounts:
-                  - name: serve-script
-                    mountPath: /serve
-                  - name: neuron-cache
-                    mountPath: /tmp/neuron_cache
-                  - name: model-cache
-                    mountPath: /root/.cache/huggingface
-                  - name: tmp
-                    mountPath: /tmp
-
-            volumes:
-              - name: serve-script
-                configMap:
-                  name: ray-serve-vllm-neuron-script
-              # Neuron compile cache: persists across pod restarts on the same node.
-              # Replace with an EFS-backed PVC to share cache across nodes.
-              - name: neuron-cache
-                emptyDir: {}
-              - name: model-cache
-                emptyDir: {}
-              - name: tmp
-                emptyDir: {}

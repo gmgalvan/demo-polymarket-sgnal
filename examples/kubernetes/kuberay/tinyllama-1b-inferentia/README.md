@@ -1,183 +1,119 @@
-# KubeRay — TinyLlama 1B on Inferentia2 via Ray Serve + vLLM-Neuron
+# KubeRay — TinyLlama 1B on Inferentia2 via AWS blueprint pattern
 
-Deploys `TinyLlama/TinyLlama-1.1B-Chat-v1.0` using **Ray Serve** on
-**AWS Inferentia2** (`inf2.xlarge`). Workers run the custom vLLM-Neuron image
-(same base as examples 04 and kserve/tinyllama-1b-inferentia) with Ray pinned
-to match the RayService spec.
+This example is validated end-to-end in this repo using the AWS AI on EKS
+`vllm-rayserve-inf2` pattern instead of `ray.serve.llm:build_openai_app`.
 
-- Model: `TinyLlama/TinyLlama-1.1B-Chat-v1.0`
-- Hardware lane: `neuron-inference` Karpenter NodePool (workers), `graviton` (head)
-- API: OpenAI-compatible on port 8000
+Working stack:
 
-## Key differences vs the GPU RayService example
+- Ray `2.32.0`
+- AWS published image:
+  - `public.ecr.aws/data-on-eks/vllm-ray2.32.0-inf2-llama3:latest`
+- custom `vllm_serve.py` wrapper mounted from a `ConfigMap`
+- model:
+  - `TinyLlama/TinyLlama-1.1B-Chat-v1.0`
+- public served model name:
+  - `tinyllama-1b-neuron`
 
-| | GPU (llama3-8b-gpu) | **Inferentia (this)** |
-|---|---|---|
-| Worker image | Public `rayproject/ray-ml:2.32.0-gpu` | Custom ECR `vllm-neuron-ray:2.32.0` |
-| Accelerator resource | `nvidia.com/gpu: 1` | `aws.amazon.com/neuroncore: 1` |
-| Max model length | 4096 tokens | **512 tokens** (fixed XLA graph) |
-| First-start time | ~5 min (model download) | **20-45 min** (Neuron XLA compilation) |
-| Scale-to-zero | Yes (`minReplicas: 0`) | **No** (`minReplicas: 1`) — recompile cost |
-| Max replicas | 4 (one GPU each) | 2 (inf2.xlarge has 2 NeuronCores) |
-| Cost vs GPU | ~$1.00/hr (g6.xlarge) | **~$0.23/hr** (inf2.xlarge, ~77% cheaper) |
+Reference:
 
-## Architecture
+- https://awslabs.github.io/ai-on-eks/docs/blueprints/inference/framework-guides/Neuron/vllm-ray-inf2
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│  RayService: tinyllama-neuron-ray                                │
-│                                                                  │
-│  ┌─────────────────────────┐    ┌──────────────────────────────┐ │
-│  │  Head Node (ARM/Gravi.) │    │  Worker Node (Inferentia2)   │ │
-│  │  - GCS / control store  │    │  - VLLMNeuronDeployment      │ │
-│  │  - Serve controller     │───▶│  - 1 replica per NeuronCore  │ │
-│  │  - HTTP proxy :8000     │    │  - vLLM (device=neuron)      │ │
-│  │  ~$0.04/hr              │    │  ~$0.23/hr (inf2.xlarge)     │ │
-│  └─────────────────────────┘    └──────────────────────────────┘ │
-└──────────────────────────────────────────────────────────────────┘
-```
+## What changed from AWS
 
-`inf2.xlarge` has **2 NeuronCores**.  With `tensor_parallel_size=1`, each
-replica uses 1 NeuronCore → you can run up to 2 replicas on a single node.
+The upstream blueprint targets a larger Llama model and different node labels.
+This repo adapts it to:
+
+- head on:
+  - `workload: x86-core`
+- worker on:
+  - `workload: neuron`
+- `inf2.xlarge`-sized TinyLlama settings:
+  - `tensor_parallel_size=2`
+  - `max_model_len=512`
+  - `max_num_seqs=4`
+  - `block_size=512`
+- `aws.amazon.com/neuroncore: "2"` for the worker
 
 ## Prerequisites
 
-### 1. Build and push the Ray-Neuron worker image
-
-The worker needs both the Neuron SDK and Ray 2.32.0 pinned together.
-
 ```bash
-export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-export AWS_REGION=us-east-1
-export BASE_IMAGE=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/vllm-neuron:latest
-
-# Authenticate to ECR
-aws ecr get-login-password --region ${AWS_REGION} | \
-  docker login --username AWS --password-stdin \
-  ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
-
-# Create the repo if it doesn't exist
-aws ecr create-repository --repository-name vllm-neuron-ray --region ${AWS_REGION} || true
-
-# Build (must run on x86_64 — Neuron SDK does not have an ARM build)
-docker build \
-  --build-arg VLLM_NEURON_URI=${BASE_IMAGE} \
-  -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/vllm-neuron-ray:2.32.0 \
-  -f kubernetes/examples/kuberay/tinyllama-1b-inferentia/Dockerfile.ray-neuron \
-  .
-
-docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/vllm-neuron-ray:2.32.0
-```
-
-If you have not built `vllm-neuron:latest` yet, do it first:
-
-```bash
-cd kubernetes/examples/manual-inference-deployment/04-vllm-neuron-tinyllama-1b-inf2
-AWS_REGION=us-east-1 ECR_REPO=vllm-neuron IMAGE_TAG=latest VLLM_REF=v0.6.0 \
-  ./build-and-push-ecr-ec2.sh
-```
-
-### 2. Update the worker image URI in `ray-service.yaml`
-
-Replace `<AWS_ACCOUNT_ID>` and `<AWS_REGION>` in the `workerGroupSpecs` container image field.
-
-### 3. Verify KubeRay and Karpenter
-
-```bash
+kubectl get nodepools
 kubectl get pods -n kuberay-system
-kubectl get nodepools   # should show neuron-inference
+```
+
+You should have:
+
+- `x86-core`
+- `neuron-inference`
+
+And the examples namespace:
+
+```bash
+kubectl apply -f examples/kubernetes/00-namespace.yaml
 ```
 
 ## Deploy
 
+This path does **not** require building a custom image.
+
 ```bash
-kubectl apply -f kubernetes/examples/00-namespace.yaml
-kubectl apply -k kubernetes/examples/kuberay/tinyllama-1b-inferentia
+kubectl apply -k examples/kubernetes/kuberay/tinyllama-1b-inferentia
 ```
 
-Watch the deployment:
+Watch the rollout:
 
 ```bash
-# RayService status (takes up to 45 min on first deploy due to Neuron compilation)
 kubectl get rayservice tinyllama-neuron-ray -n demo-examples -w
-
-# Head pod starts fast (ARM node)
-kubectl get pods -n demo-examples -l app=tinyllama-neuron-ray-head -w
-
-# Worker pod (Karpenter provisions inf2.xlarge, then Neuron compiles the model)
-kubectl get pods -n demo-examples -l app=tinyllama-neuron-ray-worker -w
-
-# Follow Neuron compilation logs
-kubectl logs -n demo-examples -l app=tinyllama-neuron-ray-worker -f
-# Look for: "neuronx_distributed: Compiled model saved to /tmp/neuron_cache/..."
-```
-
-Karpenter node provisioning:
-
-```bash
+kubectl get pods -n demo-examples -w
 kubectl get nodeclaims -w
-kubectl get nodes -l workload=neuron
 ```
+
+Expected shape:
+
+- one head pod on `x86-core`
+- one running worker on `workload=neuron`
 
 ## Verify
 
-Once `RayService` status shows `Running`:
+When the RayService reports `Running`, find the current head service:
 
 ```bash
-kubectl port-forward -n demo-examples svc/tinyllama-neuron-ray-serve-svc 8000:8000
+kubectl get svc -n demo-examples | grep tinyllama-neuron-ray
 ```
 
-In another terminal:
+Then port-forward the current head service, for example:
 
 ```bash
-curl http://127.0.0.1:8000/-/healthz
+kubectl port-forward -n demo-examples svc/tinyllama-neuron-ray-raycluster-<ID>-head-svc 8000:8000
+```
 
+Test the served model list:
+
+```bash
 curl http://127.0.0.1:8000/v1/models
+```
 
+Expected response includes:
+
+- `tinyllama-1b-neuron`
+
+Then test chat completions:
+
+```bash
 curl http://127.0.0.1:8000/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -d @kubernetes/examples/kuberay/tinyllama-1b-inferentia/request.chat-test.json
+  -d @examples/kubernetes/kuberay/tinyllama-1b-inferentia/request.chat-test.json
 ```
 
-## Connect to LiteLLM gateway
+## Notes
 
-```yaml
-model_list:
-  - model_name: tinyllama-1b-neuron-ray
-    litellm_params:
-      model: openai/tinyllama-1b-neuron
-      api_base: http://tinyllama-neuron-ray-serve-svc.demo-examples.svc.cluster.local:8000/v1
-      api_key: "none"
-```
-
-## Why `max_model_len: 512`?
-
-Neuron XLA compiles a **static computation graph** for a fixed sequence length.
-Changing `max_model_len` requires recompiling (another 20-45 min). 512 is the
-minimum that fits a typical trading signal analysis prompt + response.
-
-For longer sequences, recompile with a higher value and cache the new NEFF.
-Using EFS to persist `/tmp/neuron_cache` across nodes avoids recompilation when
-Karpenter replaces a node.
-
-## Neuron cache persistence (production tip)
-
-The default `emptyDir` cache is lost when the pod restarts on a different node.
-For production, use an EFS-backed PVC:
-
-```yaml
-volumes:
-  - name: neuron-cache
-    persistentVolumeClaim:
-      claimName: neuron-cache-efs-pvc
-```
-
-Pre-populate the cache once, then all future starts load in ~2-3 min instead
-of 20-45 min.
+- The earlier `build_openai_app` path was removed because it did not match the
+  Neuron vLLM stack published by AWS.
+- This example now pins a single Serve replica and a single worker group
+  replica to keep demos predictable on `inf2.xlarge`.
 
 ## Cleanup
 
 ```bash
-kubectl delete -k kubernetes/examples/kuberay/tinyllama-1b-inferentia
-# Karpenter consolidates and terminates the inf2.xlarge node automatically
+kubectl delete -k examples/kubernetes/kuberay/tinyllama-1b-inferentia
 ```

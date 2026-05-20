@@ -53,9 +53,15 @@ variable "vpc_state_region" {
 }
 
 variable "core_node_instance_type" {
-  description = "Instance type for the default core managed node group."
-  type        = string
-  default     = "m7g.large"
+  description = "Allowed instance types for the default core managed node group."
+  type        = list(string)
+  default     = ["m7g.large", "m7g.xlarge", "m7g.2xlarge"]
+}
+
+variable "x86_core_karpenter_instance_types" {
+  description = "Allowed x86 CPU instance types for the Karpenter x86-core node pool."
+  type        = list(string)
+  default     = ["m7i.large", "m7i.xlarge", "m7i.2xlarge"]
 }
 
 variable "core_node_ami_type" {
@@ -83,9 +89,9 @@ variable "core_node_max_size" {
 }
 
 variable "l40s_instance_type" {
-  description = "L40S-capable EC2 instance type for the GPU node group."
-  type        = string
-  default     = "g6e.xlarge"
+  description = "Allowed L40S-capable EC2 instance types for the GPU node group."
+  type        = list(string)
+  default     = ["g6e.xlarge", "g6e.2xlarge", "g6e.4xlarge"]
 }
 
 variable "l40s_node_min_size" {
@@ -121,7 +127,7 @@ variable "inferentia_instance_type" {
 variable "inferentia_karpenter_instance_types" {
   description = "Allowed Inferentia EC2 instance types for the Karpenter Neuron node pool."
   type        = list(string)
-  default     = ["inf2.xlarge", "inf2.8xlarge"]
+  default     = ["inf2.xlarge", "inf2.8xlarge", "inf2.24xlarge", "inf2.48xlarge"]
 }
 
 variable "inferentia_node_min_size" {

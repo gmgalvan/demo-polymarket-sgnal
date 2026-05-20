@@ -24,8 +24,8 @@ variable "subnet_ids" {
 }
 
 variable "core_node_instance_type" {
-  description = "Instance type for the default core managed node group."
-  type        = string
+  description = "Allowed instance types for the default core managed node group."
+  type        = list(string)
 }
 
 variable "core_node_ami_type" {
@@ -49,8 +49,8 @@ variable "core_node_max_size" {
 }
 
 variable "l40s_instance_type" {
-  description = "L40S-capable EC2 instance type for the GPU node group."
-  type        = string
+  description = "Allowed L40S-capable EC2 instance types for the GPU node group."
+  type        = list(string)
 }
 
 variable "l40s_node_min_size" {

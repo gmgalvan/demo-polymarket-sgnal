@@ -1,5 +1,6 @@
 locals {
   arm_ami_ssm_parameter = "/aws/service/eks/optimized-ami/${var.cluster_version}/amazon-linux-2023/arm64/standard/recommended/image_id"
+  x86_ami_ssm_parameter = "/aws/service/eks/optimized-ami/${var.cluster_version}/amazon-linux-2023/x86_64/standard/recommended/image_id"
   gpu_ami_ssm_parameter = "/aws/service/eks/optimized-ami/${var.cluster_version}/amazon-linux-2023/x86_64/nvidia/recommended/image_id"
   inf_ami_ssm_parameter = "/aws/service/eks/optimized-ami/${var.cluster_version}/amazon-linux-2023/x86_64/neuron/recommended/image_id"
 }

@@ -1,0 +1,38 @@
+# ── Ray + vLLM GPU image ──────────────────────────────────────────────────────
+# Extends a GPU-capable vLLM image with a pinned Ray version that matches the
+# `rayVersion` field in ray-service.yaml.
+#
+# Why a custom image:
+#   - The public `rayproject/ray-ml:*` tags referenced by older examples are
+#     not available for Ray 2.32.0 in the combinations this demo needs.
+#   - The worker needs both vLLM and Ray Serve in the same image.
+#   - The head uses the same image in this repo's current platform shape so the
+#     Serve application import path resolves consistently on x86_64.
+#
+# Build and push:
+#   export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+#   export AWS_REGION=us-east-1
+#   export VLLM_GPU_URI=vllm/vllm-openai:latest
+#
+#   aws ecr get-login-password --region ${AWS_REGION} | \
+#     docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+#
+#   aws ecr create-repository --repository-name vllm-ray-gpu --region ${AWS_REGION} || true
+#
+#   docker build \
+#     --build-arg VLLM_GPU_URI=${VLLM_GPU_URI} \
+#     -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/vllm-ray-gpu:2.32.0 \
+#     -f examples/kubernetes/kuberay/llama3-8b-gpu/Dockerfile.ray-gpu \
+#     .
+#
+#   docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/vllm-ray-gpu:2.32.0
+
+ARG VLLM_GPU_URI=vllm/vllm-openai:latest
+FROM ${VLLM_GPU_URI}
+
+# Match rayVersion in ray-service.yaml.
+RUN pip install --no-cache-dir "ray[serve]==2.32.0"
+
+# KubeRay overrides ENTRYPOINT with `ray start ...` via the container command.
+ENTRYPOINT []
+CMD []

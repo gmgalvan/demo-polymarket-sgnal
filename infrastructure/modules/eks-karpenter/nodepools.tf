@@ -6,6 +6,7 @@
 #
 # Each class maps to a different hardware type:
 #   arm-general      → Graviton (ARM64)  — lightweight services, low cost
+#   x86-core         → x86 CPU           — control-plane / amd64-only workloads
 #   gpu-inference    → NVIDIA GPU        — CUDA-based inference
 #   neuron-inference → AWS Inferentia2   — Neuron SDK inference (inf2)
 #
@@ -69,6 +70,58 @@ resource "kubectl_manifest" "ec2_node_class_arm" {
   })
 
   # EC2NodeClass uses Karpenter CRDs — the Helm release must exist first.
+  depends_on = [helm_release.karpenter]
+}
+
+# ─── EC2NodeClass: x86 CPU ───────────────────────────────────────────────────
+# Template for x86_64 CPU-only nodes. Useful for Ray heads and other amd64
+# workloads that do not need an accelerator but cannot run on the ARM/core lane.
+# 100Gi disk — these nodes may host large amd64 serving images even when they
+# only run CPU control-plane components (for example Ray heads for Neuron/GPU).
+resource "kubectl_manifest" "ec2_node_class_x86" {
+  count = var.enable_karpenter_nodepools ? 1 : 0
+
+  yaml_body = yamlencode({
+    apiVersion = "karpenter.k8s.aws/v1"
+    kind       = "EC2NodeClass"
+    metadata = {
+      name = "x86-core"
+    }
+    spec = {
+      amiFamily = "AL2023"
+      amiSelectorTerms = [
+        {
+          ssmParameter = local.x86_ami_ssm_parameter
+        }
+      ]
+      instanceProfile = var.karpenter_instance_profile_name
+      subnetSelectorTerms = [
+        for subnet_id in var.private_subnet_ids : {
+          id = subnet_id
+        }
+      ]
+      securityGroupSelectorTerms = [
+        {
+          id = var.cluster_primary_security_group_id
+        },
+        {
+          id = var.node_security_group_id
+        }
+      ]
+      blockDeviceMappings = [
+        {
+          deviceName = "/dev/xvda"
+          ebs = {
+            volumeSize          = "100Gi"
+            volumeType          = "gp3"
+            deleteOnTermination = true
+            encrypted           = true
+          }
+        }
+      ]
+    }
+  })
+
   depends_on = [helm_release.karpenter]
 }
 
@@ -229,10 +282,10 @@ resource "kubectl_manifest" "node_pool_arm" {
               values   = ["arm64"]
             },
             {
-              # Exact instance type — configurable via variable (e.g. m7g.large)
+              # Allowed instance types — configurable via variable list.
               key      = "node.kubernetes.io/instance-type"
               operator = "In"
-              values   = [var.core_node_instance_type]
+              values   = var.core_node_instance_type
             },
             {
               # on-demand: guaranteed availability for critical services
@@ -253,6 +306,60 @@ resource "kubectl_manifest" "node_pool_arm" {
   })
 
   depends_on = [kubectl_manifest.ec2_node_class_arm]
+}
+
+# ─── NodePool: x86 CPU ───────────────────────────────────────────────────────
+# Nodes for amd64 workloads that do not need an accelerator. Primary use in
+# this repo: Ray head pods for KubeRay GPU / Neuron examples.
+resource "kubectl_manifest" "node_pool_x86" {
+  count = var.enable_karpenter_nodepools ? 1 : 0
+
+  yaml_body = yamlencode({
+    apiVersion = "karpenter.sh/v1"
+    kind       = "NodePool"
+    metadata = {
+      name = "x86-core"
+    }
+    spec = {
+      template = {
+        metadata = {
+          labels = {
+            workload = "x86-core"
+          }
+        }
+        spec = {
+          nodeClassRef = {
+            group = "karpenter.k8s.aws"
+            kind  = "EC2NodeClass"
+            name  = "x86-core"
+          }
+          requirements = [
+            {
+              key      = "kubernetes.io/arch"
+              operator = "In"
+              values   = ["amd64"]
+            },
+            {
+              key      = "node.kubernetes.io/instance-type"
+              operator = "In"
+              values   = var.x86_core_instance_types
+            },
+            {
+              key      = "karpenter.sh/capacity-type"
+              operator = "In"
+              values   = ["on-demand"]
+            }
+          ]
+        }
+      }
+      disruption = {
+        consolidationPolicy = "WhenEmptyOrUnderutilized"
+        consolidateAfter    = "5m"
+      }
+    }
+  })
+
+  depends_on = [kubectl_manifest.ec2_node_class_x86]
 }
 
 # ─── NodePool: GPU (NVIDIA) ───────────────────────────────────────────────────
@@ -302,10 +409,10 @@ resource "kubectl_manifest" "node_pool_gpu" {
               values   = ["amd64"]
             },
             {
-              # GPU instance type — e.g. g6.xlarge (L40S), g5.xlarge (A10G)
+              # Allowed GPU instance types for this lane.
               key      = "node.kubernetes.io/instance-type"
               operator = "In"
-              values   = [var.l40s_instance_type]
+              values   = var.l40s_instance_type
             },
             {
               key      = "karpenter.sh/capacity-type"
