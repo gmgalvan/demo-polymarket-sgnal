@@ -1,0 +1,15 @@
+{
+  "model": "llama31-8b-gpu-fixed",
+  "temperature": 0.2,
+  "max_tokens": 160,
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a concise assistant for infrastructure smoke tests. Answer in 3 short bullets."
+    },
+    {
+      "role": "user",
+      "content": "Explain what this test proves when running Llama 3.1 8B with KServe on a fixed NVIDIA GPU node in EKS."
+    }
+  ]
+}

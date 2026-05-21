@@ -17,7 +17,7 @@ resource "helm_release" "dcgm_exporter" {
                   {
                     key      = "workload"
                     operator = "In"
-                    values   = ["gpu", "gpu-nim"]
+                    values   = ["gpu", "gpu-nim", "gpu-fixed", "gpu-fixed-hi-mem"]
                   }
                 ]
               }
@@ -137,6 +137,42 @@ resource "kubectl_manifest" "dashboard_gpu" {
     }
     data = {
       "nvidia-gpu.json" = file("${path.module}/../../../shared/observability-assets/dashboards/nvidia-gpu.json")
+    }
+  })
+}
+
+resource "kubectl_manifest" "dashboard_gpu_fixed_llm_serving" {
+  yaml_body = yamlencode({
+    apiVersion = "v1"
+    kind       = "ConfigMap"
+    metadata = {
+      name      = "grafana-dashboard-gpu-fixed-llm-serving"
+      namespace = var.monitoring_namespace
+      labels = {
+        grafana_dashboard = "1"
+        app               = "kube-prometheus-stack-grafana"
+      }
+    }
+    data = {
+      "gpu-fixed-llm-serving.json" = file("${path.module}/../../../shared/observability-assets/dashboards/gpu-fixed-llm-serving.json")
+    }
+  })
+}
+
+resource "kubectl_manifest" "dashboard_gpu_fixed_hi_mem_llm_serving" {
+  yaml_body = yamlencode({
+    apiVersion = "v1"
+    kind       = "ConfigMap"
+    metadata = {
+      name      = "grafana-dashboard-gpu-fixed-hi-mem-llm-serving"
+      namespace = var.monitoring_namespace
+      labels = {
+        grafana_dashboard = "1"
+        app               = "kube-prometheus-stack-grafana"
+      }
+    }
+    data = {
+      "gpu-fixed-hi-mem-llm-serving.json" = file("${path.module}/../../../shared/observability-assets/dashboards/gpu-fixed-hi-mem-llm-serving.json")
     }
   })
 }

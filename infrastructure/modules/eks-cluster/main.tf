@@ -102,6 +102,62 @@ module "eks" {
       }
     }
 
+    gpu_fixed = {
+      ami_type       = "AL2023_x86_64_NVIDIA"
+      instance_types = var.gpu_fixed_instance_type
+      capacity_type  = "ON_DEMAND"
+      # The upstream EKS module defaults managed node groups to custom launch
+      # templates, which ignores `disk_size` and leaves us with the 20 GiB
+      # root volume default. Force the native node group path so the larger
+      # root disk applies to the always-on GPU node.
+      use_custom_launch_template = false
+      create_launch_template     = false
+
+      min_size     = var.gpu_fixed_node_min_size
+      desired_size = var.gpu_fixed_node_desired_size
+      max_size     = var.gpu_fixed_node_max_size
+      disk_size    = var.gpu_fixed_node_disk_size
+
+      labels = {
+        accelerator = "nvidia-a10g"
+        workload    = "gpu-fixed"
+      }
+
+      taints = {
+        gpu = {
+          key    = "nvidia.com/gpu"
+          value  = "true"
+          effect = "NO_SCHEDULE"
+        }
+      }
+    }
+
+    gpu_fixed_l40s = {
+      ami_type       = "AL2023_x86_64_NVIDIA"
+      instance_types = var.gpu_fixed_l40s_instance_type
+      capacity_type  = "ON_DEMAND"
+      use_custom_launch_template = false
+      create_launch_template     = false
+
+      min_size     = var.gpu_fixed_l40s_node_min_size
+      desired_size = var.gpu_fixed_l40s_node_desired_size
+      max_size     = var.gpu_fixed_l40s_node_max_size
+      disk_size    = var.gpu_fixed_l40s_node_disk_size
+
+      labels = {
+        accelerator = "nvidia-g7e"
+        workload    = "gpu-fixed-hi-mem"
+      }
+
+      taints = {
+        gpu = {
+          key    = "nvidia.com/gpu"
+          value  = "true"
+          effect = "NO_SCHEDULE"
+        }
+      }
+    }
+
     inferentia = {
       ami_type       = "AL2023_x86_64_NEURON"
       instance_types = [var.inferentia_instance_type]

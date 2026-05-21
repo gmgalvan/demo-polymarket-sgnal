@@ -127,6 +127,18 @@ variable "gpu_nim_instance_types" {
   ]
 }
 
+variable "gpu_fixed_instance_type" {
+  description = "Instance types for the fixed always-on GPU managed node group."
+  type        = list(string)
+  default     = ["g5.2xlarge"]
+}
+
+variable "gpu_fixed_l40s_instance_type" {
+  description = "Instance types for the fixed always-on high-memory GPU managed node group."
+  type        = list(string)
+  default     = ["g7e.2xlarge"]
+}
+
 variable "l40s_node_min_size" {
   description = "Minimum nodes for the L40S managed node group."
   type        = number
@@ -147,6 +159,54 @@ variable "l40s_node_max_size" {
 
 variable "l40s_node_disk_size" {
   description = "Root volume size in GiB for L40S GPU worker nodes."
+  type        = number
+  default     = 200
+}
+
+variable "gpu_fixed_node_min_size" {
+  description = "Minimum nodes for the fixed GPU managed node group."
+  type        = number
+  default     = 1
+}
+
+variable "gpu_fixed_node_desired_size" {
+  description = "Desired nodes for the fixed GPU managed node group."
+  type        = number
+  default     = 1
+}
+
+variable "gpu_fixed_node_max_size" {
+  description = "Maximum nodes for the fixed GPU managed node group."
+  type        = number
+  default     = 1
+}
+
+variable "gpu_fixed_node_disk_size" {
+  description = "Root volume size in GiB for fixed GPU worker nodes."
+  type        = number
+  default     = 200
+}
+
+variable "gpu_fixed_l40s_node_min_size" {
+  description = "Minimum nodes for the fixed high-memory GPU managed node group."
+  type        = number
+  default     = 0
+}
+
+variable "gpu_fixed_l40s_node_desired_size" {
+  description = "Desired nodes for the fixed high-memory GPU managed node group."
+  type        = number
+  default     = 0
+}
+
+variable "gpu_fixed_l40s_node_max_size" {
+  description = "Maximum nodes for the fixed high-memory GPU managed node group."
+  type        = number
+  default     = 1
+}
+
+variable "gpu_fixed_l40s_node_disk_size" {
+  description = "Root volume size in GiB for fixed high-memory GPU worker nodes."
   type        = number
   default     = 200
 }

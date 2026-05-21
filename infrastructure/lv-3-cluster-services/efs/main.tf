@@ -43,6 +43,9 @@ module "efs" {
   vpc_id                 = data.terraform_remote_state.eks.outputs.vpc_id
   subnet_ids             = local.mount_target_subnets
   node_security_group_id = data.terraform_remote_state.eks.outputs.node_security_group_id
+  additional_allowed_security_group_ids = [
+    data.terraform_remote_state.eks.outputs.cluster_primary_security_group_id
+  ]
   oidc_provider_arn      = data.terraform_remote_state.eks.outputs.cluster_oidc_provider_arn
 
   performance_mode = "generalPurpose"

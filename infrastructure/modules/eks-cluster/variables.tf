@@ -73,6 +73,56 @@ variable "l40s_node_disk_size" {
   type        = number
 }
 
+variable "gpu_fixed_instance_type" {
+  description = "Instance types for the fixed always-on GPU managed node group."
+  type        = list(string)
+}
+
+variable "gpu_fixed_l40s_instance_type" {
+  description = "Instance types for the fixed always-on high-memory GPU managed node group."
+  type        = list(string)
+}
+
+variable "gpu_fixed_node_min_size" {
+  description = "Minimum nodes for the fixed GPU managed node group."
+  type        = number
+}
+
+variable "gpu_fixed_node_desired_size" {
+  description = "Desired nodes for the fixed GPU managed node group."
+  type        = number
+}
+
+variable "gpu_fixed_node_max_size" {
+  description = "Maximum nodes for the fixed GPU managed node group."
+  type        = number
+}
+
+variable "gpu_fixed_node_disk_size" {
+  description = "Root volume size in GiB for fixed GPU worker nodes."
+  type        = number
+}
+
+variable "gpu_fixed_l40s_node_min_size" {
+  description = "Minimum nodes for the fixed high-memory GPU managed node group."
+  type        = number
+}
+
+variable "gpu_fixed_l40s_node_desired_size" {
+  description = "Desired nodes for the fixed high-memory GPU managed node group."
+  type        = number
+}
+
+variable "gpu_fixed_l40s_node_max_size" {
+  description = "Maximum nodes for the fixed high-memory GPU managed node group."
+  type        = number
+}
+
+variable "gpu_fixed_l40s_node_disk_size" {
+  description = "Root volume size in GiB for fixed high-memory GPU worker nodes."
+  type        = number
+}
+
 variable "inferentia_instance_type" {
   description = "Inferentia-capable EC2 instance type for the Neuron node group."
   type        = string

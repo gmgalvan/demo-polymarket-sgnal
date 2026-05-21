@@ -12,5 +12,7 @@ data "terraform_remote_state" "eks" {
 module "nvidia_device_plugin" {
   source = "../../modules/nvidia-device-plugin"
 
-  plugin_namespace = var.plugin_namespace
+  plugin_namespace      = var.plugin_namespace
+  time_slicing_enabled  = var.time_slicing_enabled
+  time_slicing_replicas = var.time_slicing_replicas
 }

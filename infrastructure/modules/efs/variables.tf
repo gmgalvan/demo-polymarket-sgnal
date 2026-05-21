@@ -18,6 +18,12 @@ variable "node_security_group_id" {
   type        = string
 }
 
+variable "additional_allowed_security_group_ids" {
+  description = "Additional security group IDs allowed to reach EFS over NFS."
+  type        = list(string)
+  default     = []
+}
+
 variable "oidc_provider_arn" {
   description = "OIDC provider ARN for IRSA (EFS CSI driver service account)."
   type        = string

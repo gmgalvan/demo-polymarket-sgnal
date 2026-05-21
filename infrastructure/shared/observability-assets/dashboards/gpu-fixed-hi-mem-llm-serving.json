@@ -1,0 +1,691 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "description": "Unified dashboard for LLM serving on the fixed high-memory GPU lane backed by G7e. Use it to compare multi-model behavior, GPU pressure, and serving latency on gpu-fixed-hi-mem.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "panels": [],
+      "title": "Experiencia del usuario",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${prometheus_ds}" },
+      "description": "Cuánto tarda en llegar el primer token. Preocupa cuando el p95 supera 2 segundos.",
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 2 }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "id": 2,
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(vllm:time_to_first_token_seconds_bucket{namespace=~\"$namespace\",model_name=~\"$model_name\",pod=~\"$pod\"}[$interval])) by (le, model_name))",
+          "legendFormat": "{{model_name}} p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(vllm:time_to_first_token_seconds_bucket{namespace=~\"$namespace\",model_name=~\"$model_name\",pod=~\"$pod\"}[$interval])) by (le, model_name))",
+          "legendFormat": "{{model_name}} p95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(vllm:time_to_first_token_seconds_bucket{namespace=~\"$namespace\",model_name=~\"$model_name\",pod=~\"$pod\"}[$interval])) by (le, model_name))",
+          "legendFormat": "{{model_name}} p99",
+          "refId": "C"
+        }
+      ],
+      "title": "Time To First Token (p50 / p95 / p99)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${prometheus_ds}" },
+      "description": "Tiempo por token de salida. Rojo cuando el p95 supera 0.2s por token.",
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.1 },
+              { "color": "red", "value": 0.2 }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "id": 3,
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(vllm:time_per_output_token_seconds_bucket{namespace=~\"$namespace\",model_name=~\"$model_name\",pod=~\"$pod\"}[$interval])) by (le, model_name))",
+          "legendFormat": "{{model_name}} p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(vllm:time_per_output_token_seconds_bucket{namespace=~\"$namespace\",model_name=~\"$model_name\",pod=~\"$pod\"}[$interval])) by (le, model_name))",
+          "legendFormat": "{{model_name}} p95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(vllm:time_per_output_token_seconds_bucket{namespace=~\"$namespace\",model_name=~\"$model_name\",pod=~\"$pod\"}[$interval])) by (le, model_name))",
+          "legendFormat": "{{model_name}} p99",
+          "refId": "C"
+        }
+      ],
+      "title": "Time Per Output Token (p50 / p95 / p99)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${prometheus_ds}" },
+      "description": "Latencia end-to-end p95 de la request completa.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "id": 4,
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(vllm:e2e_request_latency_seconds_bucket{namespace=~\"$namespace\",model_name=~\"$model_name\",pod=~\"$pod\"}[$interval])) by (le, model_name))",
+          "legendFormat": "{{model_name}} p95",
+          "refId": "A"
+        }
+      ],
+      "title": "End-to-end request latency (p95)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${prometheus_ds}" },
+      "description": "Throughput de tokens de salida por modelo. Grande y fácil de leer para la demo.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "green", "value": 5 }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(vllm:generation_tokens_total{namespace=~\"$namespace\",model_name=~\"$model_name\",pod=~\"$pod\"}[1m])) by (model_name)",
+          "legendFormat": "{{model_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Tokens por segundo (output)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+      "id": 6,
+      "panels": [],
+      "title": "Carga del sistema",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${prometheus_ds}" },
+      "description": "Requests en cola vs requests ejecutándose por modelo.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 22,
+            "lineInterpolation": "linear",
+            "stacking": { "group": "A", "mode": "normal" }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byRegexp", "options": ".*waiting.*" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byRegexp", "options": ".*running.*" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+      "id": 7,
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "sum(vllm:num_requests_waiting{namespace=~\"$namespace\",model_name=~\"$model_name\",pod=~\"$pod\"}) by (model_name)",
+          "legendFormat": "{{model_name}} waiting",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(vllm:num_requests_running{namespace=~\"$namespace\",model_name=~\"$model_name\",pod=~\"$pod\"}) by (model_name)",
+          "legendFormat": "{{model_name}} running",
+          "refId": "B"
+        }
+      ],
+      "title": "Requests en cola vs en ejecución",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${prometheus_ds}" },
+      "description": "Throughput de tokens de entrada y salida para entender presión y productividad.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
+      "id": 8,
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(vllm:prompt_tokens_total{namespace=~\"$namespace\",model_name=~\"$model_name\",pod=~\"$pod\"}[1m])) by (model_name)",
+          "legendFormat": "{{model_name}} input",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(vllm:generation_tokens_total{namespace=~\"$namespace\",model_name=~\"$model_name\",pod=~\"$pod\"}[1m])) by (model_name)",
+          "legendFormat": "{{model_name}} output",
+          "refId": "B"
+        }
+      ],
+      "title": "Throughput de tokens (input vs output)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${prometheus_ds}" },
+      "description": "Utilización del KV cache. Warning arriba de 90%, crítico arriba de 95%.",
+      "fieldConfig": {
+        "defaults": {
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "red", "value": 90 }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 26 },
+      "id": 9,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "expr": "max(vllm:gpu_cache_usage_perc{namespace=~\"$namespace\",model_name=~\"$model_name\",pod=~\"$pod\"} * 100) by (model_name)",
+          "legendFormat": "{{model_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "KV cache utilization (%)",
+      "type": "gauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${prometheus_ds}" },
+      "description": "Requests exitosas por minuto por modelo.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqpm"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 26 },
+      "id": 10,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(vllm:request_success_total{namespace=~\"$namespace\",model_name=~\"$model_name\",pod=~\"$pod\"}[1m]) * 60) by (model_name)",
+          "legendFormat": "{{model_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Requests procesadas por minuto",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 },
+      "id": 11,
+      "panels": [],
+      "title": "Recursos de hardware",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${prometheus_ds}" },
+      "description": "Utilización de GPU por nodo/GPU. Filtrable por nodo para que no se mezclen instancias.",
+      "fieldConfig": {
+        "defaults": {
+          "max": 100,
+          "min": 0,
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 35 },
+      "id": 12,
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "DCGM_FI_DEV_GPU_UTIL{namespace=~\"$namespace\",kubernetes_node=~\"$node\",gpu=~\"$gpu\"}",
+          "legendFormat": "{{kubernetes_node}} GPU {{gpu}}",
+          "refId": "A"
+        }
+      ],
+      "title": "GPU utilization (%)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${prometheus_ds}" },
+      "description": "VRAM usada vs libre por GPU. Ayuda a ver si la segunda carga todavía cabe.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 18,
+            "lineInterpolation": "linear",
+            "stacking": { "group": "A", "mode": "normal" }
+          },
+          "unit": "decgbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 35 },
+      "id": 13,
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "DCGM_FI_DEV_FB_USED{namespace=~\"$namespace\",kubernetes_node=~\"$node\",gpu=~\"$gpu\"} / 1024",
+          "legendFormat": "{{kubernetes_node}} GPU {{gpu}} used",
+          "refId": "A"
+        },
+        {
+          "expr": "DCGM_FI_DEV_FB_FREE{namespace=~\"$namespace\",kubernetes_node=~\"$node\",gpu=~\"$gpu\"} / 1024",
+          "legendFormat": "{{kubernetes_node}} GPU {{gpu}} free",
+          "refId": "B"
+        }
+      ],
+      "title": "VRAM usada vs total (GB)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${prometheus_ds}" },
+      "description": "Consumo de energía de la GPU. Sube cuando realmente hay trabajo en ejecución.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "watt"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 43 },
+      "id": 14,
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "DCGM_FI_DEV_POWER_USAGE{namespace=~\"$namespace\",kubernetes_node=~\"$node\",gpu=~\"$gpu\"}",
+          "legendFormat": "{{kubernetes_node}} GPU {{gpu}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Consumo de energía (W)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${prometheus_ds}" },
+      "description": "Temperatura por GPU. Rojo arriba de 85°C.",
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 75 },
+              { "color": "red", "value": 85 }
+            ]
+          },
+          "unit": "celsius"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 43 },
+      "id": 15,
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "DCGM_FI_DEV_GPU_TEMP{namespace=~\"$namespace\",kubernetes_node=~\"$node\",gpu=~\"$gpu\"}",
+          "legendFormat": "{{kubernetes_node}} GPU {{gpu}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Temperatura GPU (°C)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 51 },
+      "id": 16,
+      "panels": [],
+      "title": "Calidad y seguridad",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${prometheus_ds}" },
+      "description": "Violaciones de guardrails por tipo y categoría. Útil si la demo ya emite estas métricas.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 52 },
+      "id": 17,
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(guardrails_violations_total{namespace=~\"$namespace\",pod=~\"$pod\",type=~\"input|output\"}[5m])) by (type, category)",
+          "legendFormat": "{{type}} / {{category}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Tasa de activación de guardrails",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${prometheus_ds}" },
+      "description": "Score promedio de calidad de un LLM-as-a-judge en la última hora.",
+      "fieldConfig": {
+        "defaults": {
+          "max": 1,
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 52 },
+      "id": 18,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "avg_over_time(llm_judge_quality_score{namespace=~\"$namespace\",pod=~\"$pod\"}[1h])",
+          "legendFormat": "quality",
+          "refId": "A"
+        }
+      ],
+      "title": "Score promedio de LLM-as-a-judge",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "${loki_ds}" },
+      "description": "Eventos recientes de WARNING o ERROR relacionados con el modelo seleccionado.",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 52 },
+      "id": 19,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": true,
+        "showCommonLabels": false,
+        "showLabels": true,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "targets": [
+        {
+          "expr": "{namespace=~\"$namespace\", pod=~\".*$model_name.*\"} |= `ERROR` or |= `WARNING`",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Eventos recientes",
+      "type": "logs"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["gpu-fixed-hi-mem", "g7e", "llm", "vllm", "kserve", "nim", "eks"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": true, "text": "Prometheus", "value": "Prometheus" },
+        "hide": 0,
+        "includeAll": false,
+        "label": "prometheus",
+        "name": "prometheus_ds",
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      },
+      {
+        "current": { "selected": true, "text": "Loki", "value": "Loki" },
+        "hide": 0,
+        "includeAll": false,
+        "label": "loki",
+        "name": "loki_ds",
+        "query": "loki",
+        "refresh": 1,
+        "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": { "selected": true, "text": "All", "value": ".*" },
+        "datasource": { "type": "prometheus", "uid": "${prometheus_ds}" },
+        "definition": "label_values(vllm:num_requests_running, namespace)",
+        "includeAll": true,
+        "label": "namespace",
+        "multi": true,
+        "name": "namespace",
+        "options": [],
+        "query": {
+          "query": "label_values(vllm:num_requests_running, namespace)",
+          "refId": "PrometheusVariableQueryEditor-namespace"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": { "selected": true, "text": "All", "value": ".*" },
+        "datasource": { "type": "prometheus", "uid": "${prometheus_ds}" },
+        "definition": "label_values(vllm:num_requests_running{namespace=~\"$namespace\"}, model_name)",
+        "includeAll": true,
+        "label": "model_name",
+        "multi": true,
+        "name": "model_name",
+        "options": [],
+        "query": {
+          "query": "label_values(vllm:num_requests_running{namespace=~\"$namespace\"}, model_name)",
+          "refId": "PrometheusVariableQueryEditor-model"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": { "selected": true, "text": "All", "value": ".*" },
+        "datasource": { "type": "prometheus", "uid": "${prometheus_ds}" },
+        "definition": "label_values(kube_pod_info{namespace=~\"$namespace\"}, node)",
+        "includeAll": true,
+        "label": "node",
+        "multi": true,
+        "name": "node",
+        "options": [],
+        "query": {
+          "query": "label_values(kube_pod_info{namespace=~\"$namespace\"}, node)",
+          "refId": "PrometheusVariableQueryEditor-node"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": { "selected": true, "text": "All", "value": ".*" },
+        "datasource": { "type": "prometheus", "uid": "${prometheus_ds}" },
+        "definition": "label_values(kube_pod_info{namespace=~\"$namespace\",node=~\"$node\"}, pod)",
+        "includeAll": true,
+        "label": "pod",
+        "multi": true,
+        "name": "pod",
+        "options": [],
+        "query": {
+          "query": "label_values(kube_pod_info{namespace=~\"$namespace\",node=~\"$node\"}, pod)",
+          "refId": "PrometheusVariableQueryEditor-pod"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": { "selected": true, "text": "All", "value": ".*" },
+        "datasource": { "type": "prometheus", "uid": "${prometheus_ds}" },
+        "definition": "label_values(DCGM_FI_DEV_GPU_UTIL{kubernetes_node=~\"$node\"}, gpu)",
+        "includeAll": true,
+        "label": "gpu",
+        "multi": true,
+        "name": "gpu",
+        "options": [],
+        "query": {
+          "query": "label_values(DCGM_FI_DEV_GPU_UTIL{kubernetes_node=~\"$node\"}, gpu)",
+          "refId": "PrometheusVariableQueryEditor-gpu"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": { "selected": true, "text": "5m", "value": "5m" },
+        "hide": 0,
+        "includeAll": false,
+        "label": "interval",
+        "multi": false,
+        "name": "interval",
+        "options": [
+          { "selected": false, "text": "1m", "value": "1m" },
+          { "selected": true, "text": "5m", "value": "5m" },
+          { "selected": false, "text": "15m", "value": "15m" },
+          { "selected": false, "text": "1h", "value": "1h" }
+        ],
+        "query": "1m,5m,15m,1h",
+        "type": "custom"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "GPU Fixed Hi-Mem LLM Serving",
+  "uid": "gpu-fixed-hi-mem-llm-serving",
+  "version": 1,
+  "weekStart": ""
+}

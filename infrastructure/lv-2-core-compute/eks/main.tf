@@ -40,6 +40,18 @@ module "eks_cluster" {
   l40s_node_max_size     = var.l40s_node_max_size
   l40s_node_disk_size    = var.l40s_node_disk_size
 
+  gpu_fixed_instance_type     = var.gpu_fixed_instance_type
+  gpu_fixed_node_min_size     = var.gpu_fixed_node_min_size
+  gpu_fixed_node_desired_size = var.gpu_fixed_node_desired_size
+  gpu_fixed_node_max_size     = var.gpu_fixed_node_max_size
+  gpu_fixed_node_disk_size    = var.gpu_fixed_node_disk_size
+
+  gpu_fixed_l40s_instance_type     = var.gpu_fixed_l40s_instance_type
+  gpu_fixed_l40s_node_min_size     = var.gpu_fixed_l40s_node_min_size
+  gpu_fixed_l40s_node_desired_size = var.gpu_fixed_l40s_node_desired_size
+  gpu_fixed_l40s_node_max_size     = var.gpu_fixed_l40s_node_max_size
+  gpu_fixed_l40s_node_disk_size    = var.gpu_fixed_l40s_node_disk_size
+
   inferentia_instance_type     = var.inferentia_instance_type
   inferentia_node_min_size     = var.inferentia_node_min_size
   inferentia_node_desired_size = var.inferentia_node_desired_size

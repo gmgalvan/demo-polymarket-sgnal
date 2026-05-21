@@ -27,3 +27,15 @@ variable "plugin_namespace" {
   type        = string
   default     = "kube-system"
 }
+
+variable "time_slicing_enabled" {
+  description = "Whether to enable NVIDIA GPU time-slicing."
+  type        = bool
+  default     = false
+}
+
+variable "time_slicing_replicas" {
+  description = "Logical GPU share count per physical GPU when time-slicing is enabled."
+  type        = number
+  default     = 4
+}

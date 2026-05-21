@@ -68,6 +68,16 @@ output "gpu_nim_instance_types" {
   value       = var.gpu_nim_instance_types
 }
 
+output "gpu_fixed_instance_type" {
+  description = "Configured instance types for the fixed always-on GPU managed node group."
+  value       = var.gpu_fixed_instance_type
+}
+
+output "gpu_fixed_l40s_instance_type" {
+  description = "Configured instance types for the fixed always-on high-memory GPU managed node group."
+  value       = var.gpu_fixed_l40s_instance_type
+}
+
 output "inferentia_instance_type" {
   description = "Configured Inferentia instance type for Neuron node group."
   value       = var.inferentia_instance_type

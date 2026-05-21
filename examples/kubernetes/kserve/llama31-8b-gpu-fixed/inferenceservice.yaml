@@ -1,0 +1,96 @@
+# KServe InferenceService for Llama 3.1 8B on the fixed GPU lane.
+# This uses KServe RawDeployment mode plus the public vLLM OpenAI image.
+# Unlike the NIM examples, this path pulls the model from Hugging Face and
+# therefore requires a `huggingface-token` secret in the target namespace.
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: llama31-8b-gpu-fixed
+  labels:
+    app.kubernetes.io/name: vllm
+    app.kubernetes.io/instance: llama31-8b-gpu-fixed
+    app.kubernetes.io/component: inference
+    app.kubernetes.io/part-of: demo-examples
+  annotations:
+    serving.kserve.io/deploymentMode: RawDeployment
+    prometheus.kserve.io/port: "8080"
+    prometheus.kserve.io/path: "/metrics"
+    serving.kserve.io/enable-prometheus-scraping: "true"
+spec:
+  predictor:
+    containers:
+      - name: kserve-container
+        image: vllm/vllm-openai:latest
+        imagePullPolicy: IfNotPresent
+        args:
+          - --model=meta-llama/Llama-3.1-8B-Instruct
+          - --served-model-name=llama31-8b-gpu-fixed
+          - --host=0.0.0.0
+          - --port=8080
+          - --dtype=half
+          - --max-model-len=4096
+          - --max-num-seqs=2
+          - --gpu-memory-utilization=0.90
+          - --download-dir=/models
+        env:
+          - name: HF_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: huggingface-token
+                key: token
+                optional: false
+          - name: HUGGING_FACE_HUB_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: huggingface-token
+                key: token
+                optional: false
+        ports:
+          - containerPort: 8080
+            name: http1
+            protocol: TCP
+        resources:
+          requests:
+            cpu: "3"
+            memory: "12Gi"
+            nvidia.com/gpu: "1"
+          limits:
+            cpu: "4"
+            memory: "16Gi"
+            nvidia.com/gpu: "1"
+        startupProbe:
+          httpGet:
+            path: /health
+            port: http1
+          periodSeconds: 10
+          failureThreshold: 120
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http1
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http1
+          initialDelaySeconds: 20
+          periodSeconds: 20
+          timeoutSeconds: 5
+        volumeMounts:
+          - name: model-cache
+            mountPath: /models
+
+    nodeSelector:
+      workload: gpu-fixed
+    tolerations:
+      - key: nvidia.com/gpu
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+
+    volumes:
+      - name: model-cache
+        emptyDir: {}

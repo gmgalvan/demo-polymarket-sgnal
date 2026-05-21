@@ -2,6 +2,13 @@
 # EFS Filesystem + Mount Targets
 ################################################################################
 
+locals {
+  allowed_nfs_security_group_ids = distinct(compact(concat(
+    [var.node_security_group_id],
+    var.additional_allowed_security_group_ids
+  )))
+}
+
 resource "aws_efs_file_system" "this" {
   creation_token = var.name
   encrypted      = true
@@ -42,11 +49,13 @@ resource "aws_security_group" "efs" {
 }
 
 resource "aws_security_group_rule" "nfs_ingress" {
+  for_each = toset(local.allowed_nfs_security_group_ids)
+
   type                     = "ingress"
   from_port                = 2049
   to_port                  = 2049
   protocol                 = "tcp"
-  source_security_group_id = var.node_security_group_id
+  source_security_group_id = each.value
   security_group_id        = aws_security_group.efs.id
   description              = "NFS from EKS nodes"
 }
