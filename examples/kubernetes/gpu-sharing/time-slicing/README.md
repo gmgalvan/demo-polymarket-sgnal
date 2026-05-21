@@ -78,6 +78,22 @@ helm upgrade --install nvidia-device-plugin nvidia-device-plugin/nvidia-device-p
 
 Time-slicing is **off by default**. Turn it on explicitly:
 
+If `lv-2-core-compute/eks` was just recreated, refresh your local kubeconfig
+first:
+
+```bash
+aws eks update-kubeconfig --region us-east-1 --name 352-demo-dev-eks
+kubectl get nodes
+```
+
+Otherwise Helm/Terraform may fail with:
+
+```bash
+Kubernetes cluster unreachable: the server has asked for the client to provide credentials
+```
+
+Then apply the plugin change:
+
 ```bash
 cd infrastructure/lv-3-cluster-services/nvidia-device-plugin
 terraform apply \
@@ -152,6 +168,13 @@ kubectl delete -f examples/kubernetes/gpu-sharing/time-slicing/nvidia-device-plu
 If you used the fast `yaml + helm` path, finish by reconciling the release back
 to Terraform:
 
+If the EKS cluster was recently recreated, refresh kubeconfig first:
+
+```bash
+aws eks update-kubeconfig --region us-east-1 --name 352-demo-dev-eks
+kubectl get nodes
+```
+
 ```bash
 cd infrastructure/lv-3-cluster-services/nvidia-device-plugin
 terraform apply -var='time_slicing_enabled=false'
@@ -167,6 +190,13 @@ terraform apply \
 ```
 
 ## Disable time-slicing again with Terraform
+
+If the EKS cluster was recently recreated, refresh kubeconfig first:
+
+```bash
+aws eks update-kubeconfig --region us-east-1 --name 352-demo-dev-eks
+kubectl get nodes
+```
 
 ```bash
 cd infrastructure/lv-3-cluster-services/nvidia-device-plugin
