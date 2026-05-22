@@ -1,133 +1,125 @@
-# model-deploy-manually
+# standalone OpenClaw on EC2
 
-The idea here is just two steps:
+This example now installs both OpenClaw and a local `vLLM` server on the same GPU EC2 instance, with OpenClaw configured to use that local model by default.
 
-1. show how to load the model and send a message locally
-2. show what the same pattern looks like when it runs on a server
+What Terraform does:
 
-## 1. Local example
+- launches one GPU EC2 instance
+- uses an AWS Deep Learning AMI with NVIDIA drivers already included
+- installs `vLLM` in its own Python virtualenv under `/opt/vllm/.venv`
+- starts `vLLM` as a `systemd` service on `127.0.0.1:8000`
+- installs OpenClaw with the official installer
+- runs non-interactive onboarding as `ec2-user`
+- writes OpenClaw model config so the default model is the local `vLLM` model
+- installs the gateway as a background service
+- keeps the gateway on loopback by default for safer remote access through SSM
 
-[`app/01-load-model.py`](app/01-load-model.py) is almost the same as the book example.
+The default instance type is `g5.xlarge`, which gives you one NVIDIA A10G GPU. The default local model is `Qwen/Qwen2.5-14B-Instruct-AWQ`, served by `vLLM` as `qwen2.5-14b-instruct-awq-local` with `awq_marlin`.
 
-```bash
-cd model-deploy-manually/app
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python 01-load-model.py
-```
-
-## 2. Server example
-
-[`app/server.py`](app/server.py) is the minimal FastAPI version.
+## Terraform
 
 ```bash
-cd model-deploy-manually/app
-source .venv/bin/activate
-uvicorn server:app --host 0.0.0.0 --port 8000
-```
-
-Test:
-
-```bash
-curl http://127.0.0.1:8000/generate \
-  -H 'Content-Type: application/json' \
-  -d '{"text":"Explain in one sentence why model serving needs a runtime."}'
-```
-
-## 3. Terraform
-
-The [`terraform/`](terraform/main.tf) folder only does this:
-
-- creates one GPU EC2 instance
-- copies `01-load-model.py`
-- copies `server.py`
-- installs dependencies
-- starts `uvicorn`
-
-### From scratch
-
-```bash
-cd model-deploy-manually/terraform
+cd examples/standalone/terraform
 cp terraform.tfvars.example terraform.tfvars
 terraform init
 terraform apply
 ```
 
-After `apply`, Terraform returns:
+`terraform.tfvars` can stay minimal for the default public model:
 
-- `instance_id`
-- `public_ip`
-- `service_url`
+```hcl
+hf_token = ""
+```
 
-### Test the script on the instance
+If you switch to a gated Hugging Face model later, set `hf_token`.
+If you leave `gateway_token` blank, the instance bootstrap generates one and stores it on the box.
 
-Connect with SSM:
+## Access the dashboard
+
+The default bind is loopback on port `18789`, so the recommended access pattern is SSM port forwarding.
+
+```bash
+aws ssm start-session \
+  --region us-east-1 \
+  --target "$(terraform output -raw instance_id)" \
+  --document-name AWS-StartPortForwardingSession \
+  --parameters '{"portNumber":["18789"],"localPortNumber":["18789"]}'
+```
+
+Then open:
+
+```bash
+http://127.0.0.1:18789/
+```
+
+On first open, the dashboard will ask for the gateway token. You can read it from the instance:
+
+```bash
+aws ssm start-session --region us-east-1 --target "$(terraform output -raw instance_id)"
+sudo bash -lc 'source /home/ec2-user/.openclaw-bootstrap/openclaw.env && printf "%s\n" "$OPENCLAW_GATEWAY_TOKEN"'
+```
+
+Paste that value into `Gateway Token`, leave `Password` empty, and click `Connect`.
+
+If the browser asks for device pairing approval, approve the request from the instance with the same token:
+
+```bash
+TOKEN=$(sudo bash -lc 'source /home/ec2-user/.openclaw-bootstrap/openclaw.env && printf "%s" "$OPENCLAW_GATEWAY_TOKEN"')
+sudo -u ec2-user -i openclaw devices list --token "$TOKEN"
+sudo -u ec2-user -i openclaw devices approve <REQUEST_ID> --token "$TOKEN"
+```
+
+After pairing, click `Connect` again. A new browser profile or incognito window may generate a new pairing request.
+
+## Quick validation
+
+After `terraform apply`, these checks should pass from inside the instance:
+
+```bash
+curl -H "Authorization: Bearer vllm-local" http://127.0.0.1:8000/v1/models
+sudo -u ec2-user -i openclaw models list --provider vllm
+curl -i http://127.0.0.1:18789/
+```
+
+Once the UI is open, create a `New session` and send a short prompt like:
+
+```text
+Respond with exactly: hola
+```
+
+## Inspect the instance
 
 ```bash
 aws ssm start-session --region us-east-1 --target "$(terraform output -raw instance_id)"
 ```
 
-Then inside the instance:
+Useful checks inside the instance:
 
 ```bash
-/opt/model-deploy-manually/run-load-model.sh
+cat /home/ec2-user/.openclaw/openclaw.json
+cat /home/ec2-user/.openclaw-bootstrap/openclaw.env
+cat /var/log/openclaw-install.log
+cat /var/log/openclaw-onboard.log
+cat /var/log/vllm.log
+sudo systemctl status vllm
+curl -H "Authorization: Bearer vllm-local" http://127.0.0.1:8000/v1/models
+su - ec2-user -c 'openclaw gateway status'
+su - ec2-user -c 'openclaw models list --provider vllm'
 ```
 
-Or run the script directly with the Deep Learning AMI Python:
+## Optional public exposure
 
-```bash
-/opt/pytorch/bin/python /opt/model-deploy-manually/01-load-model.py
+If you intentionally want to open the gateway port, set:
+
+```hcl
+gateway_bind        = "lan"
+allowed_cidr_blocks = ["203.0.113.10/32"]
 ```
 
-That runs:
-
-- [`01-load-model.py`](app/01-load-model.py)
-- with the same `MODEL_ID` configured in Terraform
-- directly on the EC2 GPU instance
-
-### Test the HTTP server
-
-From your laptop:
-
-```bash
-terraform output -raw service_url
-```
-
-Then test the endpoint with `curl`.
-
-Example:
-
-```bash
-curl "$(terraform output -raw service_url)" \
-  -H 'Content-Type: application/json' \
-  -d '{"text":"Explain in one sentence why model serving needs a runtime."}'
-```
-
-### Useful checks
-
-Inside the instance:
-
-```bash
-cat /opt/model-deploy-manually/.env
-cat /var/log/model-server.log
-ps aux | grep uvicorn
-ss -ltnp | grep 8000
-nvidia-smi
-```
+Keep token auth enabled if you do this.
 
 To destroy it:
 
 ```bash
 terraform destroy
 ```
-
-## Note
-
-The default model is already a non-gated one:
-
-```text
-TinyLlama/TinyLlama-1.1B-Chat-v1.0
-```
-
-That means you do not need `HF_TOKEN` unless you switch to a gated model later.

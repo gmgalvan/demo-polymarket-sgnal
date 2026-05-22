@@ -1,0 +1,62 @@
+#!/bin/bash
+set -euo pipefail
+
+export PATH="$HOME/.local/bin:$PATH"
+source /home/ec2-user/.openclaw-bootstrap/openclaw.env
+
+ONBOARD_EXIT=0
+if ! openclaw onboard --non-interactive \
+  --mode local \
+  --auth-choice skip \
+  --gateway-auth token \
+  --gateway-token-ref-env OPENCLAW_GATEWAY_TOKEN \
+  --gateway-port ${gateway_port} \
+  --gateway-bind ${gateway_bind} \
+  --install-daemon \
+  --daemon-runtime node \
+  --skip-search \
+  --skip-skills \
+  --accept-risk \
+  --json; then
+  ONBOARD_EXIT=$?
+fi
+
+openclaw config set models.providers.vllm '{
+  "baseUrl": "http://127.0.0.1:${vllm_port}/v1",
+  "apiKey": ${jsonencode(vllm_api_key)},
+  "api": "openai-completions",
+  "timeoutSeconds": 300,
+  "request": { "allowPrivateNetwork": true },
+  "models": [
+    {
+      "id": ${jsonencode(vllm_served_model_name)},
+      "name": ${jsonencode(vllm_served_model_name)},
+      "reasoning": false,
+      "input": ["text"],
+      "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+      "contextWindow": ${vllm_max_model_len},
+      "maxTokens": 512
+    }
+  ]
+}' --strict-json
+
+openclaw config set agents.defaults.models '{"vllm/*": {}}' --strict-json --merge
+openclaw config set agents.defaults.model.primary '${jsonencode("vllm/${vllm_served_model_name}")}' --strict-json
+openclaw config set agents.defaults.timeoutSeconds 300 --strict-json
+
+mkdir -p /home/ec2-user/.config/systemd/user/openclaw-gateway.service.d
+cat > /home/ec2-user/.config/systemd/user/openclaw-gateway.service.d/override.conf <<EOF
+[Service]
+Environment="OPENCLAW_GATEWAY_TOKEN=$OPENCLAW_GATEWAY_TOKEN"
+Environment="OPENCLAW_GATEWAY_PORT=${gateway_port}"
+EOF
+
+chown -R ec2-user:ec2-user /home/ec2-user/.config/systemd/user
+systemctl --user daemon-reload || true
+openclaw gateway restart || openclaw gateway start || true
+openclaw models list --provider vllm > /var/log/openclaw-vllm-models.log || true
+openclaw gateway status --deep >> /var/log/openclaw-vllm-models.log || true
+
+if [ "$ONBOARD_EXIT" -ne 0 ]; then
+  echo "openclaw onboard returned $ONBOARD_EXIT during initial health check; continued with post-config bootstrap" >&2
+fi

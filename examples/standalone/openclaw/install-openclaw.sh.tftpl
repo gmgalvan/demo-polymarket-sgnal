@@ -1,0 +1,10 @@
+#!/bin/bash
+set -euo pipefail
+
+export PATH="$HOME/.local/bin:$PATH"
+
+sudo dnf install -y cmake gcc-c++ git make python3
+curl -fsSL https://rpm.nodesource.com/setup_24.x | sudo bash -
+sudo dnf install -y nodejs
+sudo npm install -g openclaw
+openclaw --version

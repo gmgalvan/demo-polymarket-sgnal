@@ -1,0 +1,26 @@
+#!/bin/bash
+set -euo pipefail
+
+dnf install -y gcc gcc-c++ ninja-build python3.11 python3.11-devel
+
+install -d -m 0755 /opt/vllm
+install -d -m 0755 /opt/vllm/cache
+chown -R ec2-user:ec2-user /opt/vllm
+
+if [ ! -d /opt/vllm/.venv ]; then
+  python3.11 -m venv /opt/vllm/.venv
+fi
+
+source /opt/vllm/.venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install vllm
+
+cat <<EOF_ENV >/opt/vllm/vllm.env
+HF_TOKEN=${jsonencode(hf_token)}
+HF_HOME=/opt/vllm/cache
+VLLM_API_KEY=${jsonencode(vllm_api_key)}
+VLLM_MODEL_ID=${jsonencode(vllm_model_id)}
+VLLM_SERVED_MODEL_NAME=${jsonencode(vllm_served_model_name)}
+EOF_ENV
+chmod 600 /opt/vllm/vllm.env
+chown ec2-user:ec2-user /opt/vllm/vllm.env

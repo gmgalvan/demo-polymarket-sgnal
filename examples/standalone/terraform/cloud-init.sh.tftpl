@@ -1,56 +1,64 @@
 #!/bin/bash
 set -euxo pipefail
 
-mkdir -p /opt/model-deploy-manually
+dnf install -y git openssl
+install -d -m 0755 /opt/openclaw-demo /opt/vllm
+install -d -m 0700 -o ec2-user -g ec2-user /home/ec2-user/.openclaw-bootstrap
+touch /var/log/openclaw-install.log /var/log/openclaw-onboard.log /var/log/vllm.log /var/log/openclaw-vllm-models.log
+chown ec2-user:ec2-user /var/log/openclaw-install.log /var/log/openclaw-onboard.log /var/log/vllm.log /var/log/openclaw-vllm-models.log
 
-cat <<'EOF_REQ' | base64 -d > /opt/model-deploy-manually/requirements.txt
-${requirements_txt_b64}
-EOF_REQ
-
-cat <<'EOF_LOAD' | base64 -d > /opt/model-deploy-manually/01-load-model.py
-${load_model_py_b64}
-EOF_LOAD
-
-cat <<'EOF_APP' | base64 -d > /opt/model-deploy-manually/server.py
-${server_py_b64}
-EOF_APP
-
-if [ -x /opt/pytorch/bin/pip ] && [ -x /opt/pytorch/bin/uvicorn ]; then
-  PYTHON_BIN="/opt/pytorch/bin/python"
-  PIP_BIN="/opt/pytorch/bin/pip"
-  UVCORN_BIN="/opt/pytorch/bin/uvicorn"
+if [ -n "${gateway_token}" ]; then
+  GATEWAY_TOKEN_VALUE=${jsonencode(gateway_token)}
 else
-  dnf install -y python3 python3-pip
-  python3 -m venv /opt/model-deploy-manually/.venv
-  PYTHON_BIN="/opt/model-deploy-manually/.venv/bin/python"
-  PIP_BIN="/opt/model-deploy-manually/.venv/bin/pip"
-  UVCORN_BIN="/opt/model-deploy-manually/.venv/bin/uvicorn"
+  GATEWAY_TOKEN_VALUE="$(openssl rand -hex 24)"
 fi
 
-"$${PIP_BIN}" install --upgrade pip
-"$${PIP_BIN}" install -r /opt/model-deploy-manually/requirements.txt
-
-cat <<EOF_ENV > /opt/model-deploy-manually/.env
-export MODEL_ID=${jsonencode(model_id)}
-export HF_TOKEN=${jsonencode(hf_token)}
+cat <<EOF_ENV >/opt/openclaw-demo/openclaw.env
+export OPENCLAW_GATEWAY_TOKEN="$${GATEWAY_TOKEN_VALUE}"
 EOF_ENV
+chmod 600 /opt/openclaw-demo/openclaw.env
 
-cat <<EOF_RUN > /opt/model-deploy-manually/run-server.sh
-#!/bin/bash
-set -euo pipefail
-source /opt/model-deploy-manually/.env
-cd /opt/model-deploy-manually
-exec $${UVCORN_BIN} server:app --host 0.0.0.0 --port ${server_port}
-EOF_RUN
+cp /opt/openclaw-demo/openclaw.env /home/ec2-user/.openclaw-bootstrap/openclaw.env
+chown ec2-user:ec2-user /home/ec2-user/.openclaw-bootstrap/openclaw.env
+chmod 600 /home/ec2-user/.openclaw-bootstrap/openclaw.env
 
-cat <<EOF_RUN_LOCAL > /opt/model-deploy-manually/run-load-model.sh
-#!/bin/bash
-set -euo pipefail
-source /opt/model-deploy-manually/.env
-cd /opt/model-deploy-manually
-exec $${PYTHON_BIN} /opt/model-deploy-manually/01-load-model.py
-EOF_RUN_LOCAL
+cat <<'EOF_VLLM_INSTALL' | base64 -d >/opt/vllm/install-vllm.sh
+${install_vllm_sh_b64}
+EOF_VLLM_INSTALL
 
-chmod +x /opt/model-deploy-manually/run-server.sh
-chmod +x /opt/model-deploy-manually/run-load-model.sh
-nohup /opt/model-deploy-manually/run-server.sh >/var/log/model-server.log 2>&1 &
+cat <<'EOF_VLLM_SERVICE' | base64 -d >/etc/systemd/system/vllm.service
+${vllm_service_b64}
+EOF_VLLM_SERVICE
+
+cat <<'EOF_OC_INSTALL' | base64 -d >/opt/openclaw-demo/install-openclaw.sh
+${install_openclaw_sh_b64}
+EOF_OC_INSTALL
+
+cat <<'EOF_OC_CONFIG' | base64 -d >/opt/openclaw-demo/configure-openclaw.sh
+${configure_openclaw_sh_b64}
+EOF_OC_CONFIG
+
+chmod 755 /opt/vllm/install-vllm.sh /opt/openclaw-demo/install-openclaw.sh /opt/openclaw-demo/configure-openclaw.sh
+
+/opt/vllm/install-vllm.sh > /var/log/vllm-install.log 2>&1
+systemctl daemon-reload
+systemctl enable --now vllm.service
+
+VLLM_READY=0
+for _ in $(seq 1 240); do
+  if curl -fsS -H "Authorization: Bearer ${vllm_api_key}" "http://127.0.0.1:${vllm_port}/v1/models" >/dev/null; then
+    VLLM_READY=1
+    break
+  fi
+  sleep 5
+done
+
+if [ "$${VLLM_READY}" -ne 1 ]; then
+  echo "vLLM did not become ready in time" >&2
+  systemctl status vllm.service || true
+  exit 1
+fi
+
+loginctl enable-linger ec2-user || true
+su - ec2-user -c 'bash -lc "/opt/openclaw-demo/install-openclaw.sh > /var/log/openclaw-install.log 2>&1"'
+su - ec2-user -c 'bash -lc "/opt/openclaw-demo/configure-openclaw.sh > /var/log/openclaw-onboard.log 2>&1"'

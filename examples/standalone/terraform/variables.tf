@@ -8,9 +8,19 @@ variable "instance_type" {
   default = "g5.xlarge"
 }
 
-variable "server_port" {
+variable "gateway_port" {
   type    = number
-  default = 8000
+  default = 18789
+}
+
+variable "gateway_bind" {
+  type    = string
+  default = "loopback"
+}
+
+variable "allowed_cidr_blocks" {
+  type    = list(string)
+  default = []
 }
 
 variable "hf_token" {
@@ -19,7 +29,39 @@ variable "hf_token" {
   default   = ""
 }
 
-variable "model_id" {
+variable "gateway_token" {
+  type      = string
+  sensitive = true
+  default   = ""
+}
+
+variable "vllm_api_key" {
+  type      = string
+  sensitive = true
+  default   = "vllm-local"
+}
+
+variable "vllm_gpu_memory_utilization" {
+  type    = number
+  default = 0.92
+}
+
+variable "vllm_max_model_len" {
+  type    = number
+  default = 32768
+}
+
+variable "vllm_model_id" {
   type    = string
-  default = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+  default = "Qwen/Qwen2.5-14B-Instruct-AWQ"
+}
+
+variable "vllm_port" {
+  type    = number
+  default = 8000
+}
+
+variable "vllm_served_model_name" {
+  type    = string
+  default = "qwen2.5-14b-instruct-awq-local"
 }
