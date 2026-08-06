@@ -1,0 +1,33 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ai-routing
+  namespace: sesion-3
+  labels:
+    app.kubernetes.io/part-of: networking-demo
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /
+    external-dns.alpha.kubernetes.io/hostname: k8s.demo.gmgalvan.com
+    external-dns.alpha.kubernetes.io/ttl: "60"
+spec:
+  ingressClassName: alb
+  rules:
+    - host: k8s.demo.gmgalvan.com
+      http:
+        paths:
+          - path: /model
+            pathType: Prefix
+            backend:
+              service:
+                name: model-api
+                port:
+                  name: http
+          - path: /signal
+            pathType: Prefix
+            backend:
+              service:
+                name: signal-api
+                port:
+                  name: http

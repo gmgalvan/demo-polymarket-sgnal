@@ -1,0 +1,160 @@
+# Step 9 — the same EFS volume served by a GPU Pod and read by an ARM Pod.
+#
+# The weights were written once, from an ARM node (step 8). Now:
+#   - vLLM on the NVIDIA L40S worker mounts them read-only and serves inference;
+#   - a small BusyBox Pod on the ARM worker mounts the identical volume at the
+#     same time.
+#
+# Two nodes, two CPU architectures, one filesystem. That is ReadWriteMany, and
+# it is the storage side of the multi-architecture story: the model does not
+# care which chip loads it.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tinyllama-vllm-efs
+  namespace: sesion-3
+  labels:
+    app: tinyllama-vllm-efs
+    app.kubernetes.io/name: vllm
+    app.kubernetes.io/instance: tinyllama-vllm-efs
+    app.kubernetes.io/component: inference
+    app.kubernetes.io/part-of: sesion-3
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: tinyllama-vllm-efs
+  template:
+    metadata:
+      labels:
+        app: tinyllama-vllm-efs
+        app.kubernetes.io/name: vllm
+        app.kubernetes.io/instance: tinyllama-vllm-efs
+        app.kubernetes.io/component: inference
+        app.kubernetes.io/part-of: sesion-3
+    spec:
+      nodeSelector:
+        workload: gpu-fixed-hi-mem
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      containers:
+        - name: vllm
+          image: vllm/vllm-openai:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            # A local path, not a Hugging Face repo id: there is no download.
+            - --model=/models/TinyLlama-1.1B-Chat-v1.0
+            - --served-model-name=tinyllama-1b
+            - --host=0.0.0.0
+            - --port=8000
+            - --dtype=half
+            - --max-model-len=1024
+            - --gpu-memory-utilization=0.50
+          env:
+            # Keep any Hugging Face scratch file away from the read-only mount.
+            - name: HF_HOME
+              value: /tmp/hf
+          ports:
+            - name: http
+              containerPort: 8000
+          resources:
+            requests:
+              cpu: "2"
+              memory: 8Gi
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "4"
+              memory: 16Gi
+              nvidia.com/gpu: "1"
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 90
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: model-store
+              mountPath: /models
+              # Read-only: nothing can corrupt the shared weights, and the
+              # kernel page cache does the rest.
+              readOnly: true
+            - name: shared-memory
+              mountPath: /dev/shm
+      volumes:
+        - name: model-store
+          persistentVolumeClaim:
+            claimName: model-store-efs
+        - name: shared-memory
+          emptyDir:
+            medium: Memory
+            sizeLimit: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tinyllama-vllm-efs
+  namespace: sesion-3
+  labels:
+    app.kubernetes.io/name: vllm
+    app.kubernetes.io/instance: tinyllama-vllm-efs
+    app.kubernetes.io/part-of: sesion-3
+spec:
+  selector:
+    app: tinyllama-vllm-efs
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+---
+# Second reader, on the ARM node, mounting the same PVC at the same time.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: efs-reader
+  namespace: sesion-3
+  labels:
+    app.kubernetes.io/name: efs-reader
+    app.kubernetes.io/part-of: sesion-3
+spec:
+  nodeSelector:
+    workload: core
+  containers:
+    - name: reader
+      image: busybox:1.36
+      command:
+        - /bin/sh
+        - -c
+      args:
+        - |
+          echo "reading the shared model store from $(uname -m)"
+          ls -lh /models/TinyLlama-1.1B-Chat-v1.0
+          exec sleep 3600
+      volumeMounts:
+        - name: model-store
+          mountPath: /models
+          readOnly: true
+      resources:
+        requests:
+          cpu: 5m
+          memory: 8Mi
+        limits:
+          cpu: 50m
+          memory: 32Mi
+  volumes:
+    - name: model-store
+      persistentVolumeClaim:
+        claimName: model-store-efs
+  restartPolicy: Never

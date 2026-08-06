@@ -170,7 +170,7 @@ Pregunta sugerida para la audiencia:
 La respuesta conduce al siguiente laboratorio:
 
 ```text
-../configmaps/
+../1-configmaps/
 ```
 
 ## Limpieza

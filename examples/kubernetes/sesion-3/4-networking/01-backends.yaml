@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: model-api
+  namespace: sesion-3
+  labels:
+    app.kubernetes.io/part-of: networking-demo
+    lab: networking-demo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: model-api
+  template:
+    metadata:
+      labels:
+        app: model-api
+        lab: networking-demo
+    spec:
+      nodeSelector:
+        workload: core
+      containers:
+        - name: web
+          image: nginx:1.27-alpine
+          command: ["/bin/sh", "-c"]
+          args:
+            - >-
+              mkdir -p /usr/share/nginx/html/model;
+              printf '<h1>Model API</h1><p>Response from Pod: %s</p>\n' "$HOSTNAME"
+              | tee /usr/share/nginx/html/index.html
+              /usr/share/nginx/html/model/index.html >/dev/null;
+              exec nginx -g 'daemon off;'
+          ports:
+            - name: http
+              containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signal-api
+  namespace: sesion-3
+  labels:
+    app.kubernetes.io/part-of: networking-demo
+    lab: networking-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: signal-api
+  template:
+    metadata:
+      labels:
+        app: signal-api
+        lab: networking-demo
+    spec:
+      nodeSelector:
+        workload: core
+      containers:
+        - name: web
+          image: nginx:1.27-alpine
+          command: ["/bin/sh", "-c"]
+          args:
+            - >-
+              mkdir -p /usr/share/nginx/html/signal;
+              printf '<h1>Signal API</h1><p>Response from Pod: %s</p>\n' "$HOSTNAME"
+              | tee /usr/share/nginx/html/index.html
+              /usr/share/nginx/html/signal/index.html >/dev/null;
+              exec nginx -g 'daemon off;'
+          ports:
+            - name: http
+              containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi

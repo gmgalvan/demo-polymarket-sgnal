@@ -1,0 +1,48 @@
+# Step 2 — hostPath: a directory of the node, not of the Pod.
+#
+# The data survives the Pod, but it lives on ONE node. If the Pod is rescheduled
+# to a different node the data is gone, and a hostPath mount can expose host
+# files to the container. Use it for node agents and labs, not for application
+# data.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hostpath-number-generator
+  namespace: sesion-3
+  labels:
+    app.kubernetes.io/name: hostpath-number-generator
+    app.kubernetes.io/part-of: sesion-3
+spec:
+  # The Pod is pinned to the ARM node on purpose: hostPath data does not travel.
+  nodeSelector:
+    workload: core
+  containers:
+    - name: generator
+      image: alpine:3.20
+      command:
+        - /bin/sh
+        - -c
+      args:
+        - |
+          echo "pod $(hostname) started at $(date -u)" >> /opt/number.out
+          while true; do
+            shuf -i 0-100 -n 1 >> /opt/number.out
+            sleep 5
+          done
+      volumeMounts:
+        - name: data-volume
+          mountPath: /opt
+      resources:
+        requests:
+          cpu: 5m
+          memory: 8Mi
+        limits:
+          cpu: 50m
+          memory: 32Mi
+  volumes:
+    - name: data-volume
+      hostPath:
+        # DirectoryOrCreate creates the path on the node if it does not exist.
+        # "Directory" would fail the Pod when the path is missing.
+        path: /data-sesion-3
+        type: DirectoryOrCreate

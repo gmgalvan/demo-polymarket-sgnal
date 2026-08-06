@@ -74,11 +74,24 @@ Estos laboratorios pequeños cubren la primera lección de manera progresiva:
 1. [`0-environment-variables/`](./0-environment-variables/README.md): valores
    directos mediante `env.value`, inspección dentro del contenedor y cambio
    mediante rollout.
-2. [`configmaps/`](./configmaps/README.md): creación imperativa y declarativa,
+2. [`1-configmaps/`](./1-configmaps/README.md): creación imperativa y declarativa,
    `envFrom`, `configMapKeyRef` y montaje como volumen.
+3. [`2-secrets/`](./2-secrets/README.md): creación imperativa y declarativa de
+   un Secret de ejemplo.
+4. [`3-storage/`](./3-storage/README.md): `emptyDir`, `hostPath`, CSI,
+   StorageClass, PV/PVC, políticas de recuperación y almacenamiento compartido
+   con EFS para servir un modelo desde GPU y ARM a la vez.
+5. [`4-networking/`](./4-networking/README.md): CNI, comunicación Pod-to-Pod,
+   Services, EndpointSlices, DNS del clúster e Ingress opcional.
 
-Ambos usan imágenes ligeras multi-arquitectura y no requieren GPU, EFS ni un
-servidor de modelos.
+Los ejemplos de variables, Secrets y los primeros pasos de ConfigMaps usan
+imágenes ligeras multi-arquitectura. El último ejemplo de ConfigMaps despliega
+vLLM y sí requiere el worker con GPU.
+
+El laboratorio de almacenamiento necesita instalar dos controladores CSI: el
+add-on `aws-ebs-csi-driver` (pasos 3 a 6) y el stack de Terraform de EFS en
+`infrastructure/lv-3-cluster-services/efs` (pasos 7 a 9). Ambos procedimientos
+están documentados dentro de [`3-storage/README.md`](./3-storage/README.md).
 
 ## Diagrama general de referencia
 

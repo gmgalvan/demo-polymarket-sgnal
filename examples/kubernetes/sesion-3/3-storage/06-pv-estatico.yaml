@@ -1,0 +1,154 @@
+# Step 6 — static provisioning and the binding rules.
+#
+# Here the administrator creates the PersistentVolume by hand and the user
+# creates a PersistentVolumeClaim. Kubernetes binds them only when every rule
+# matches: capacity, access modes, volume mode and storage class.
+#
+# Two claims are declared on purpose:
+#   - myclaim        (500Mi)  -> binds to pv-vol1
+#   - oversized-claim (10Gi)  -> stays Pending, no PV satisfies it
+#
+# hostPath is used so the lab needs no cloud resources. The real-world shape of
+# a static PV on AWS is shown in the commented block at the end of the file.
+---
+# A class with no provisioner: it names a family of volumes an administrator
+# creates by hand. Without this object the claims below would fail with
+# "storageclass not found" instead of simply waiting for a matching volume,
+# which is a different lesson from the one this step is about.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: manual
+  labels:
+    app.kubernetes.io/part-of: sesion-3
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: Immediate
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-vol1
+  labels:
+    app.kubernetes.io/part-of: sesion-3
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  volumeMode: Filesystem
+  # Retain: when the PVC is deleted, the PV goes to Released and keeps the data.
+  # An administrator must clean it up before it can be used again.
+  # Delete would remove the backing volume with the claim.
+  persistentVolumeReclaimPolicy: Retain
+  # An empty-but-declared class keeps this PV out of the dynamic provisioning
+  # path: only claims that ask for "manual" can bind to it.
+  storageClassName: manual
+  hostPath:
+    path: /mnt/pv-sesion-3
+    type: DirectoryOrCreate
+  # The data lives on one node, so the PV declares where it can be used.
+  # The scheduler honours this when placing the consuming Pod.
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: workload
+              operator: In
+              values:
+                - core
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: myclaim
+  namespace: sesion-3
+  labels:
+    app.kubernetes.io/part-of: sesion-3
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: manual
+  resources:
+    requests:
+      # Smaller than the PV. Kubernetes binds the whole 1Gi PV anyway: a claim
+      # gets one PV, never a slice of it.
+      storage: 500Mi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: oversized-claim
+  namespace: sesion-3
+  labels:
+    app.kubernetes.io/part-of: sesion-3
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: manual
+  resources:
+    requests:
+      # No PV of class "manual" has 10Gi, so this claim stays Pending forever.
+      storage: 10Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pv-consumer
+  namespace: sesion-3
+  labels:
+    app.kubernetes.io/name: pv-consumer
+    app.kubernetes.io/part-of: sesion-3
+spec:
+  containers:
+    - name: writer
+      image: busybox:1.36
+      command:
+        - /bin/sh
+        - -c
+      args:
+        - |
+          echo "bound through myclaim at $(date -u)" >> /data/claim.txt
+          exec sleep 3600
+      volumeMounts:
+        - name: static-volume
+          mountPath: /data
+      resources:
+        requests:
+          cpu: 5m
+          memory: 8Mi
+        limits:
+          cpu: 50m
+          memory: 32Mi
+  volumes:
+    - name: static-volume
+      persistentVolumeClaim:
+        claimName: myclaim
+  restartPolicy: Never
+# ---
+# Reference only: the same idea backed by a real EBS volume created outside
+# Kubernetes. The old in-tree field was `awsElasticBlockStore.volumeID`; the
+# current form points at the CSI driver and the AWS volume id.
+#
+# apiVersion: v1
+# kind: PersistentVolume
+# metadata:
+#   name: pv-ebs-static
+# spec:
+#   capacity:
+#     storage: 10Gi
+#   accessModes:
+#     - ReadWriteOnce
+#   persistentVolumeReclaimPolicy: Retain
+#   storageClassName: ""
+#   csi:
+#     driver: ebs.csi.aws.com
+#     volumeHandle: vol-0123456789abcdef0   # aws ec2 create-volume
+#     fsType: ext4
+#   nodeAffinity:
+#     required:
+#       nodeSelectorTerms:
+#         - matchExpressions:
+#             - key: topology.kubernetes.io/zone
+#               operator: In
+#               values:
+#                 - us-east-1b            # an EBS volume never crosses AZs

@@ -51,7 +51,7 @@ The steps that use BusyBox are multi-architecture and do not require a GPU.
 The first manifest defines non-sensitive model-serving settings:
 
 ```bash
-cat examples/kubernetes/sesion-3/configmaps/01-configmap.yaml
+cat examples/kubernetes/sesion-3/1-configmaps/01-configmap.yaml
 ```
 
 Important values:
@@ -70,7 +70,7 @@ Apply it declaratively:
 
 ```bash
 kubectl apply \
-  --filename examples/kubernetes/sesion-3/configmaps/01-configmap.yaml
+  --filename examples/kubernetes/sesion-3/1-configmaps/01-configmap.yaml
 ```
 
 Inspect the independent Kubernetes object:
@@ -119,7 +119,7 @@ Deploy it:
 
 ```bash
 kubectl apply \
-  --filename examples/kubernetes/sesion-3/configmaps/02-envfrom.yaml
+  --filename examples/kubernetes/sesion-3/1-configmaps/02-envfrom.yaml
 
 kubectl rollout status deployment/ai-config-dashboard \
   --namespace sesion-3
@@ -168,7 +168,7 @@ Apply and wait for it:
 
 ```bash
 kubectl apply \
-  --filename examples/kubernetes/sesion-3/configmaps/03-single-key.yaml
+  --filename examples/kubernetes/sesion-3/1-configmaps/03-single-key.yaml
 
 kubectl wait pod/model-selection-demo \
   --namespace sesion-3 \
@@ -213,7 +213,7 @@ Many applications expect a file instead of environment variables. Inspect the
 ordinary application file:
 
 ```bash
-cat examples/kubernetes/sesion-3/configmaps/vllm-config.yaml
+cat examples/kubernetes/sesion-3/1-configmaps/vllm-config.yaml
 ```
 
 It contains native vLLM server arguments:
@@ -234,7 +234,7 @@ Preview the imperative conversion from file to ConfigMap:
 ```bash
 kubectl create configmap model-file-config \
   --namespace sesion-3 \
-  --from-file=examples/kubernetes/sesion-3/configmaps/vllm-config.yaml \
+  --from-file=examples/kubernetes/sesion-3/1-configmaps/vllm-config.yaml \
   --dry-run=client \
   --output yaml
 ```
@@ -243,7 +243,7 @@ For the repeatable lab, apply the equivalent declarative manifest:
 
 ```bash
 kubectl apply \
-  --filename examples/kubernetes/sesion-3/configmaps/04-file-configmap.yaml
+  --filename examples/kubernetes/sesion-3/1-configmaps/04-file-configmap.yaml
 
 kubectl describe configmap model-file-config \
   --namespace sesion-3
@@ -317,7 +317,7 @@ Then run the allocatable-resource command again and confirm
 
 ```bash
 kubectl apply \
-  --filename examples/kubernetes/sesion-3/configmaps/05-volume.yaml
+  --filename examples/kubernetes/sesion-3/1-configmaps/05-volume.yaml
 
 kubectl get pods \
   --namespace sesion-3 \
@@ -465,17 +465,17 @@ Delete the GPU workload first:
 
 ```bash
 kubectl delete \
-  --filename examples/kubernetes/sesion-3/configmaps/05-volume.yaml
+  --filename examples/kubernetes/sesion-3/1-configmaps/05-volume.yaml
 ```
 
 Delete the ConfigMap lab resources:
 
 ```bash
 kubectl delete \
-  --filename examples/kubernetes/sesion-3/configmaps/04-file-configmap.yaml \
-  --filename examples/kubernetes/sesion-3/configmaps/03-single-key.yaml \
-  --filename examples/kubernetes/sesion-3/configmaps/02-envfrom.yaml \
-  --filename examples/kubernetes/sesion-3/configmaps/01-configmap.yaml
+  --filename examples/kubernetes/sesion-3/1-configmaps/04-file-configmap.yaml \
+  --filename examples/kubernetes/sesion-3/1-configmaps/03-single-key.yaml \
+  --filename examples/kubernetes/sesion-3/1-configmaps/02-envfrom.yaml \
+  --filename examples/kubernetes/sesion-3/1-configmaps/01-configmap.yaml
 ```
 
 Turn off the fixed L40S worker after the demonstration:
