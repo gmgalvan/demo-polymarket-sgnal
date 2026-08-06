@@ -133,9 +133,9 @@ module "eks" {
     }
 
     gpu_fixed_l40s = {
-      ami_type       = "AL2023_x86_64_NVIDIA"
-      instance_types = var.gpu_fixed_l40s_instance_type
-      capacity_type  = "ON_DEMAND"
+      ami_type                   = "AL2023_x86_64_NVIDIA"
+      instance_types             = var.gpu_fixed_l40s_instance_type
+      capacity_type              = "ON_DEMAND"
       use_custom_launch_template = false
       create_launch_template     = false
 
@@ -145,7 +145,7 @@ module "eks" {
       disk_size    = var.gpu_fixed_l40s_node_disk_size
 
       labels = {
-        accelerator = "nvidia-g7e"
+        accelerator = "nvidia-l40s"
         workload    = "gpu-fixed-hi-mem"
       }
 

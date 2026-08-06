@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: env-color-demo
+  namespace: sesion-3
+  labels:
+    app: env-color-demo
+    app.kubernetes.io/name: env-color-demo
+    app.kubernetes.io/part-of: sesion-3
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: env-color-demo
+  template:
+    metadata:
+      labels:
+        app: env-color-demo
+    spec:
+      containers:
+        - name: web
+          image: busybox:1.36
+          env:
+            - name: APP_COLOR
+              value: "lightpink"
+            - name: APP_MODE
+              value: "demo"
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - |
+              set -eu
+              mkdir -p /www
+              cat > /www/index.html <<EOF
+              <!doctype html>
+              <html lang="es">
+                <head><meta charset="utf-8"><title>ENV demo</title></head>
+                <body style="background:${APP_COLOR};font-family:sans-serif;text-align:center;padding:4rem">
+                  <h1>Variables de entorno en Kubernetes</h1>
+                  <p>Modo: ${APP_MODE}</p>
+                  <p>La misma imagen, una configuración diferente.</p>
+                </body>
+              </html>
+              EOF
+              exec httpd -f -p 8080 -h /www
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: env-color-demo
+  namespace: sesion-3
+  labels:
+    app.kubernetes.io/name: env-color-demo
+    app.kubernetes.io/part-of: sesion-3
+spec:
+  selector:
+    app: env-color-demo
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

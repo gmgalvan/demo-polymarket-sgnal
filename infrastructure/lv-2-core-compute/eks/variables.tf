@@ -134,9 +134,9 @@ variable "gpu_fixed_instance_type" {
 }
 
 variable "gpu_fixed_l40s_instance_type" {
-  description = "Instance types for the fixed always-on high-memory GPU managed node group."
+  description = "Instance types for the optional fixed NVIDIA L40S managed node group."
   type        = list(string)
-  default     = ["g7e.2xlarge"]
+  default     = ["g6e.xlarge"]
 }
 
 variable "l40s_node_min_size" {
@@ -166,13 +166,13 @@ variable "l40s_node_disk_size" {
 variable "gpu_fixed_node_min_size" {
   description = "Minimum nodes for the fixed GPU managed node group."
   type        = number
-  default     = 1
+  default     = 0
 }
 
 variable "gpu_fixed_node_desired_size" {
   description = "Desired nodes for the fixed GPU managed node group."
   type        = number
-  default     = 1
+  default     = 0
 }
 
 variable "gpu_fixed_node_max_size" {

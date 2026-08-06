@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: sesion-3
+  labels:
+    app.kubernetes.io/part-of: sesion-3
+data:
+  APP_COLOR: "#dbeafe"
+  APP_MODE: "demo"
+  MODEL_PROVIDER: "vllm"
+  MODEL_NAME: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+  SERVED_MODEL_NAME: "tinyllama-1b"
+  MODEL_TASK: "text-generation"
+  MAX_MODEL_LEN: "1024"
+  DTYPE: "half"
+  GPU_MEMORY_UTILIZATION: "0.50"
+  ACCELERATOR: "NVIDIA L40S"

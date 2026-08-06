@@ -74,7 +74,11 @@ aws iam simulate-principal-policy \
 
 - Region: `us-east-1`
 - Kubernetes version default: `1.34`
-- `l40s` and `inferentia` managed node groups default to desired size `0`
+- All accelerator managed node groups default to desired size `0`, including
+  `gpu_fixed`, `gpu_fixed_l40s`, `l40s`, and `inferentia`. Enable an accelerator
+  node explicitly only when its demo is needed.
+- The optional fixed L40S group uses `g6e.xlarge`, the smallest G6e size with
+  one NVIDIA L40S GPU. It remains at desired size `0` by default.
 - Remote state key:
   - `dev/lv-2-core-compute/eks/terraform.tfstate`
 
