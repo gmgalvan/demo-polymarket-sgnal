@@ -1,0 +1,129 @@
+# Step 5 — a real AI workload on a dynamically provisioned EBS volume.
+#
+# TinyLlama is downloaded once into a gp3 volume. When the Pod is deleted and
+# recreated, vLLM finds the weights already on the PersistentVolume and skips
+# the download: the storage outlives the Pod.
+#
+# ReadWriteOnce means one node at a time, which is exactly the shape of a
+# node-local model cache. Requires the GPU worker (workload=gpu-fixed-hi-mem).
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: model-cache-ebs
+  namespace: session-3
+  labels:
+    app.kubernetes.io/part-of: session-3
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ebs-sc
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tinyllama-vllm-ebs
+  namespace: session-3
+  labels:
+    app: tinyllama-vllm-ebs
+    app.kubernetes.io/name: vllm
+    app.kubernetes.io/instance: tinyllama-vllm-ebs
+    app.kubernetes.io/component: inference
+    app.kubernetes.io/part-of: session-3
+spec:
+  replicas: 1
+  # Recreate: the old Pod must release the RWO volume before the new one starts.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: tinyllama-vllm-ebs
+  template:
+    metadata:
+      labels:
+        app: tinyllama-vllm-ebs
+        app.kubernetes.io/name: vllm
+        app.kubernetes.io/instance: tinyllama-vllm-ebs
+        app.kubernetes.io/component: inference
+        app.kubernetes.io/part-of: session-3
+    spec:
+      nodeSelector:
+        workload: gpu-fixed-hi-mem
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      containers:
+        - name: vllm
+          image: vllm/vllm-openai:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - --model=TinyLlama/TinyLlama-1.1B-Chat-v1.0
+            - --served-model-name=tinyllama-1b
+            - --host=0.0.0.0
+            - --port=8000
+            - --dtype=half
+            - --max-model-len=1024
+            - --gpu-memory-utilization=0.50
+            # Hugging Face weights land on the PersistentVolume, not in the
+            # container filesystem.
+            - --download-dir=/models
+          ports:
+            - name: http
+              containerPort: 8000
+          resources:
+            requests:
+              cpu: "2"
+              memory: 8Gi
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "4"
+              memory: 16Gi
+              nvidia.com/gpu: "1"
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 90
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: model-cache
+              mountPath: /models
+            - name: shared-memory
+              mountPath: /dev/shm
+      volumes:
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: model-cache-ebs
+        - name: shared-memory
+          emptyDir:
+            medium: Memory
+            sizeLimit: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tinyllama-vllm-ebs
+  namespace: session-3
+  labels:
+    app.kubernetes.io/name: vllm
+    app.kubernetes.io/instance: tinyllama-vllm-ebs
+    app.kubernetes.io/part-of: session-3
+spec:
+  selector:
+    app: tinyllama-vllm-ebs
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http

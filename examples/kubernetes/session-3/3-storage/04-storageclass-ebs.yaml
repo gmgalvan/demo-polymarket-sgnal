@@ -1,0 +1,26 @@
+# Step 4 — an explicit StorageClass for EBS gp3.
+#
+# A StorageClass is the "menu" of storage a cluster offers. It names the CSI
+# driver that will provision the volume and the parameters that driver receives.
+# It is a cluster-scoped object: it has no namespace.
+#
+# Requires the aws-ebs-csi-driver add-on (see the README, step 3).
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ebs-sc
+  labels:
+    app.kubernetes.io/part-of: session-3
+# The provisioner is the CSI driver name registered in the cluster.
+provisioner: ebs.csi.aws.com
+parameters:
+  type: gp3
+  encrypted: "true"
+# Delete: removing the PVC also deletes the EBS volume. Use Retain for data you
+# cannot afford to lose by accident.
+reclaimPolicy: Delete
+# WaitForFirstConsumer: create the volume only once a Pod is scheduled, so the
+# EBS volume lands in the same Availability Zone as the node. This matters:
+# an EBS volume cannot cross AZs.
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true

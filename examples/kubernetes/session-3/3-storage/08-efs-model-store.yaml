@@ -1,0 +1,86 @@
+# Step 8 — a shared model store on EFS, written from an ARM node.
+#
+# ReadWriteMany is the capability EBS does not have: many Pods, on many nodes,
+# in many Availability Zones, on different CPU architectures, mounting the same
+# filesystem at the same time.
+#
+# The download runs as a Job on the cheap ARM worker. No GPU is burned while
+# 2 GB of weights travel from Hugging Face to EFS.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: model-store-efs
+  namespace: session-3
+  labels:
+    app.kubernetes.io/part-of: session-3
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: efs-sc
+  resources:
+    requests:
+      # EFS grows elastically; this number is a formality the API requires.
+      storage: 20Gi
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: efs-model-downloader
+  namespace: session-3
+  labels:
+    app.kubernetes.io/name: efs-model-downloader
+    app.kubernetes.io/part-of: session-3
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: efs-model-downloader
+        app.kubernetes.io/part-of: session-3
+    spec:
+      restartPolicy: OnFailure
+      # The ARM worker: no accelerator needed to move bytes.
+      nodeSelector:
+        workload: core
+      containers:
+        - name: downloader
+          image: python:3.11-slim
+          command:
+            - bash
+            - -c
+          args:
+            - |
+              set -euo pipefail
+              MODEL_DIR=/models/TinyLlama-1.1B-Chat-v1.0
+              if [ -f "$MODEL_DIR/config.json" ]; then
+                echo "Model already present on EFS, nothing to download."
+                ls -lh "$MODEL_DIR"
+                exit 0
+              fi
+              pip install --quiet huggingface_hub
+              python3 - <<'PY'
+              from huggingface_hub import snapshot_download
+
+              snapshot_download(
+                  "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+                  local_dir="/models/TinyLlama-1.1B-Chat-v1.0",
+                  allow_patterns=["*.json", "*.model", "*.safetensors", "*.txt"],
+              )
+              PY
+              echo "Download complete."
+              ls -lh "$MODEL_DIR"
+          volumeMounts:
+            - name: model-store
+              mountPath: /models
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+      volumes:
+        - name: model-store
+          persistentVolumeClaim:
+            claimName: model-store-efs

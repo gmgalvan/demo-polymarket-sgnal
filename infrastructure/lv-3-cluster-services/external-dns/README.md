@@ -1,7 +1,7 @@
 # ExternalDNS for Route 53
 
 This lv-3 stack installs ExternalDNS with IRSA and limits Route 53 write access
-to the existing public `gmgalvan.com` hosted zone.
+to the existing public `example.com` hosted zone.
 
 The deployment watches only Kubernetes Ingress resources carrying the
 `external-dns.alpha.kubernetes.io/hostname` annotation. It uses a TXT registry
@@ -46,7 +46,7 @@ aws route53 list-resource-record-sets \
   --hosted-zone-id Z08205913ACQUTWJH2PLJ \
   --query "ResourceRecordSets[?contains(Name, 'k8s.demo')]"
 
-dig +short k8s.demo.gmgalvan.com
+dig +short k8s.demo.example.com
 ```
 
 ExternalDNS does not create the ALB. AWS Load Balancer Controller creates the

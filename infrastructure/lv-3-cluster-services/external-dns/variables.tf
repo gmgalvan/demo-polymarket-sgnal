@@ -49,7 +49,7 @@ variable "hosted_zone_id" {
 variable "domain_filter" {
   description = "DNS suffix ExternalDNS is allowed to manage."
   type        = string
-  default     = "gmgalvan.com"
+  default     = "example.com"
 }
 
 variable "dns_policy" {

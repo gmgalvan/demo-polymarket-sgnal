@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-config-dashboard
+  namespace: session-3
+  labels:
+    app: ai-config-dashboard
+    app.kubernetes.io/name: ai-config-dashboard
+    app.kubernetes.io/part-of: session-3
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-config-dashboard
+  template:
+    metadata:
+      labels:
+        app: ai-config-dashboard
+    spec:
+      containers:
+        - name: web
+          image: busybox:1.36
+          envFrom:
+            - configMapRef:
+                name: app-config
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - |
+              set -eu
+              mkdir -p /www
+              cat > /www/index.html <<EOF
+              <!doctype html>
+              <html lang="en">
+                <head>
+                  <meta charset="utf-8">
+                  <meta name="viewport" content="width=device-width,initial-scale=1">
+                  <title>AI Model Configuration</title>
+                  <style>
+                    body { background:${APP_COLOR}; color:#172033; font-family:Arial,sans-serif; margin:0; padding:3rem; }
+                    main { background:white; border-radius:18px; box-shadow:0 12px 35px #0002; margin:auto; max-width:760px; padding:2.5rem; }
+                    h1 { margin-top:0; }
+                    .status { background:#dcfce7; border-radius:999px; color:#166534; display:inline-block; padding:.4rem .8rem; }
+                    dl { display:grid; gap:.8rem; grid-template-columns:180px 1fr; margin-top:2rem; text-align:left; }
+                    dt { color:#64748b; font-weight:bold; }
+                    dd { margin:0; overflow-wrap:anywhere; }
+                    code { background:#f1f5f9; border-radius:5px; padding:.15rem .35rem; }
+                  </style>
+                </head>
+                <body>
+                  <main>
+                    <span class="status">Configured through envFrom</span>
+                    <h1>AI Model Serving Console</h1>
+                    <p>All settings below were injected from one Kubernetes ConfigMap.</p>
+                    <dl>
+                      <dt>Environment</dt><dd>${APP_MODE}</dd>
+                      <dt>Provider</dt><dd>${MODEL_PROVIDER}</dd>
+                      <dt>Model</dt><dd><code>${MODEL_NAME}</code></dd>
+                      <dt>Served name</dt><dd>${SERVED_MODEL_NAME}</dd>
+                      <dt>Task</dt><dd>${MODEL_TASK}</dd>
+                      <dt>Context</dt><dd>${MAX_MODEL_LEN} tokens</dd>
+                      <dt>Data type</dt><dd>${DTYPE}</dd>
+                      <dt>GPU target</dt><dd>${GPU_MEMORY_UTILIZATION}</dd>
+                      <dt>Accelerator</dt><dd>${ACCELERATOR}</dd>
+                    </dl>
+                  </main>
+                </body>
+              </html>
+              EOF
+              exec httpd -f -p 8080 -h /www
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-config-dashboard
+  namespace: session-3
+  labels:
+    app.kubernetes.io/name: ai-config-dashboard
+    app.kubernetes.io/part-of: session-3
+spec:
+  selector:
+    app: ai-config-dashboard
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

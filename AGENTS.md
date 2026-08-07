@@ -89,6 +89,10 @@ Read these first before making non-trivial changes:
 
 - Kubernetes manifests and deployment examples live under `examples/kubernetes/`
 - Standalone examples live under `examples/standalone/`
+- `examples/kubernetes/session-3/` is Kubernetes course material, not application
+  code: progressive labs for environment variables, ConfigMaps, Secrets, storage
+  (CSI, PV/PVC, EBS, EFS) and networking. Its docs and YAML comments are written
+  in English and its Kubernetes namespace is `session-3`.
 
 ## Local Setup
 

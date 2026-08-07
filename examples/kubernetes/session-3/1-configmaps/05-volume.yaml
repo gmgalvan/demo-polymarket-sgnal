@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tinyllama-vllm
+  namespace: session-3
+  labels:
+    app: tinyllama-vllm
+    app.kubernetes.io/name: vllm
+    app.kubernetes.io/instance: tinyllama-vllm
+    app.kubernetes.io/component: inference
+    app.kubernetes.io/part-of: session-3
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: tinyllama-vllm
+  template:
+    metadata:
+      labels:
+        app: tinyllama-vllm
+        app.kubernetes.io/name: vllm
+        app.kubernetes.io/instance: tinyllama-vllm
+        app.kubernetes.io/component: inference
+        app.kubernetes.io/part-of: session-3
+    spec:
+      nodeSelector:
+        workload: gpu-fixed-hi-mem
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      containers:
+        - name: vllm
+          image: vllm/vllm-openai:latest #vllm server
+          imagePullPolicy: IfNotPresent
+          args:
+            - --config
+            - /etc/model-config/vllm-config.yaml
+          ports:
+            - name: http
+              containerPort: 8000
+          resources:
+            requests:
+              cpu: "2"
+              memory: 8Gi
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "4"
+              memory: 16Gi
+              nvidia.com/gpu: "1"
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 90
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: model-file-config-volume
+              mountPath: /etc/model-config
+              readOnly: true
+            - name: model-cache
+              mountPath: /models
+            - name: shared-memory
+              mountPath: /dev/shm
+      volumes:
+        - name: model-file-config-volume
+          configMap:
+            name: model-file-config
+        - name: model-cache
+          emptyDir:
+            sizeLimit: 20Gi
+        - name: shared-memory
+          emptyDir:
+            medium: Memory
+            sizeLimit: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tinyllama-vllm
+  namespace: session-3
+  labels:
+    app.kubernetes.io/name: vllm
+    app.kubernetes.io/instance: tinyllama-vllm
+    app.kubernetes.io/component: inference
+    app.kubernetes.io/part-of: session-3
+spec:
+  selector:
+    app: tinyllama-vllm
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http

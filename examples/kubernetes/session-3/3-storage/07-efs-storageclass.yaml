@@ -1,0 +1,30 @@
+# Step 7 — the EFS StorageClass.
+#
+# DO NOT APPLY THIS FILE IF TERRAFORM ALREADY CREATED efs-sc.
+#
+#   infrastructure/lv-3-cluster-services/efs
+#
+# creates the filesystem, the mount targets, the IAM role, installs the EFS CSI
+# driver and creates this exact StorageClass. The manifest is kept here so the
+# audience can read what Terraform produced, and as a manual fallback:
+# replace fs-REPLACE_ME with the real filesystem id, then apply.
+#
+#   aws efs describe-file-systems --region us-east-1 \
+#     --query 'FileSystems[].FileSystemId' --output text
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: efs-sc
+  labels:
+    app.kubernetes.io/part-of: session-3
+provisioner: efs.csi.aws.com
+parameters:
+  # efs-ap: every PVC gets its own EFS Access Point, an isolated subdirectory
+  # of the same filesystem with its own POSIX permissions.
+  provisioningMode: efs-ap
+  fileSystemId: fs-REPLACE_ME
+  directoryPerms: "700"
+reclaimPolicy: Retain
+# Immediate: EFS is reachable from every AZ, so there is no reason to wait for
+# a Pod before creating the access point (compare with EBS, step 4).
+volumeBindingMode: Immediate

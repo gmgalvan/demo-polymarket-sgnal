@@ -4,7 +4,7 @@
 
 > **Local setup note:** The package must be installed in editable mode before running any script, otherwise `ModuleNotFoundError: No module named 'agents'` is raised.
 > ```bash
-> cd demo-polymarket
+> cd polymarket
 > uv pip install -e ".[dev]"   # or: pip install -e .
 > ```
 
@@ -167,9 +167,12 @@ The agent connects to models via LiteLLM, never directly to vLLM. This is what m
 ├── README.md                  # Project overview and quickstart
 ├── docs/                      # Architecture docs, talk materials, diagrams
 ├── infrastructure/            # Terraform IaC (networking, IAM, EKS, cluster services)
-├── kubernetes/                # K8s manifests (Inferentia, GPU, model storage examples)
+├── examples/                  # K8s manifests and course material
+│   ├── kubernetes/            # Inferentia, GPU, model storage, GPU sharing, KServe, KubeRay
+│   │   └── session-3/         # Kubernetes course: env vars, ConfigMaps, Secrets, storage, networking
+│   └── standalone/            # Standalone examples
 ├── specs/                     # Planning docs
-└── demo-polymarket/           # Application code (agent + services + demo scripts)
+└── polymarket/                # Application code (agent + services + demo scripts)
     ├── pyproject.toml         # Python package config
     ├── docker-compose.yml     # Local MCP servers + ChromaDB
     ├── agents/                # Agent application code
