@@ -7,6 +7,7 @@ import { LogJourney } from "./components/LogJourney";
 import { SectionDivider } from "./components/SectionDivider";
 import { ObservabilityTaxonomy } from "./components/ObservabilityTaxonomy";
 import { Pipeline } from "./components/Pipeline";
+import { CollectorPipeline } from "./components/CollectorPipeline";
 import { LiveTerminal, type TerminalRequest } from "./components/LiveTerminal";
 import { InvestigationPanel } from "./components/InvestigationPanel";
 import { CopyableCommand } from "./components/CopyableCommand";
@@ -453,47 +454,125 @@ export default function App() {
 
       {/* 9: /metrics and Prometheus-style collection */}
       <Slide backgroundColor={COLORS.bg} textColor={COLORS.text}>
-        <Kicker>Row 3, continued</Kicker>
-        <Heading fontSize="2rem" color={COLORS.text} textAlign="left" margin="0 0 0.2em 0">
+        <Kicker>Beyond right now</Kicker>
+        <Heading fontSize="1.9rem" color={COLORS.text} textAlign="left" margin="0 0 0.15em 0">
           When CPU and memory aren't enough
         </Heading>
-        <Text fontSize="1rem" color={COLORS.dim} textAlign="left" margin="0 0 1rem 0">
-          History, dashboards, alerts, anything beyond "right now" — that's a
-          different pipeline, and also not included.
+        <Text fontSize="0.88rem" color={COLORS.dim} textAlign="left" margin="0 0 0.6rem 0">
+          Metrics Server keeps no history. For anything over time you need a
+          collector — and, again, Kubernetes does not ship one.
         </Text>
-        <Pipeline
-          stages={[
-            { label: "Kubernetes component", sub: "kubelet, apiserver, …" },
-            { label: "/metrics", sub: "Prometheus-compatible text" },
+        <CollectorPipeline
+          revealAtStep={1}
+          before={[
+            { label: "Kubernetes component", sub: "kubelet, apiserver, …", ok: true },
+            { label: "/metrics", sub: "Prometheus-compatible text", ok: true },
             { label: "a collector", sub: "you install this", outside: true },
             { label: "dashboards · alerts", sub: "you install this", outside: true },
           ]}
+          after={[
+            { label: "Kubernetes component", sub: "kubelet, apiserver, …", ok: true },
+            { label: "/metrics", sub: "Prometheus-compatible text", ok: true },
+            { label: "Prometheus", sub: "scrapes it, stores history", ok: true },
+            { label: "Grafana · Alertmanager", sub: "queries it, alerts on it", ok: true },
+          ]}
+          steps={[
+            {
+              question: "Add the chart repo",
+              command:
+                "helm repo add prometheus-community https://prometheus-community.github.io/helm-charts",
+            },
+            {
+              question: "Install collector + dashboards in one go",
+              command:
+                "helm upgrade --install monitoring prometheus-community/kube-prometheus-stack -n monitoring --create-namespace --set grafana.adminPassword=admin",
+              expect: "~60s. Prometheus, Grafana, Alertmanager, exporters",
+            },
+            {
+              question: "What did that actually bring?",
+              command: "kubectl -n monitoring get pods",
+              expect: "Six Pods — none of this existed a minute ago",
+            },
+            {
+              question: "Where is the Grafana password kept?",
+              command:
+                'kubectl -n monitoring get secret monitoring-grafana -o jsonpath="{.data.admin-password}" | base64 -d ; echo',
+              expect: "A Secret, base64 — encoded, not encrypted",
+            },
+            {
+              question: "Open Grafana",
+              command:
+                "kubectl -n monitoring port-forward svc/monitoring-grafana 3000:80",
+              expect: "Paste in a second terminal, then open the tab. admin / admin",
+              copyOnly: true,
+              link: { href: "http://localhost:3000", label: "localhost:3000 — Grafana" },
+            },
+            {
+              question: "Ask something kubectl top cannot",
+              command:
+                "kubectl -n monitoring port-forward svc/monitoring-kube-prometheus-prometheus 9090:9090",
+              expect: "Same again, then query rate(...[5m]) in the tab",
+              copyOnly: true,
+              link: { href: "http://localhost:9090", label: "localhost:9090 — Prometheus" },
+            },
+          ]}
         />
-        <FlexBox style={{ gap: "1.4rem" }} margin="1.2rem 0 0 0" alignItems="stretch">
-          <Card title="Metrics Server">
-            Current CPU/memory, served through <K>metrics.k8s.io</K> for{" "}
-            <K>kubectl top</K> and autoscaling. No history.
-          </Card>
-          <Card title="Prometheus-style collection">
-            Scrapes <K>/metrics</K> from many components, stores a time series,
-            answers queries over time. Not part of Kubernetes.
-          </Card>
-        </FlexBox>
         <Notes>
-          The trap to avoid: Kubernetes components expose metrics in a
-          Prometheus-compatible format at /metrics — that does NOT mean
-          Prometheus is installed. Nothing scrapes those endpoints until you
-          deploy something that does.
+          The distinction to keep sharp: Metrics Server answers "right now" for
+          CPU and memory only, and keeps nothing. Prometheus scrapes /metrics
+          from many components, stores a time series, and answers questions
+          about the past. They are not competitors and a cluster can have
+          either, both, or neither.
           {"\n\n"}
-          Also do not conflate the two boxes below. Metrics Server and
-          Prometheus solve different problems; a cluster can have either,
-          both, or neither.
+          The diagram above fills in when you click step 2: the two amber
+          "you install this" boxes become Prometheus and Grafana. That is the
+          whole slide in one gesture — the chain was always incomplete, and you
+          are the one completing it.
+          {"\n\n"}
+          upgrade --install rather than install, so re-running it on a cluster
+          that already has the release succeeds instead of failing with
+          "cannot reuse a name that is still in use".
+          {"\n\n"}
+          Steps 4 and 5 are marked "other terminal" and only copy to the
+          clipboard — they never touch the terminal on this slide. port-forward
+          does not return, so running it here would occupy the one console the
+          rest of the demo needs. Have a second terminal open and paste there.
+          {"\n\n"}
+          Each of those two steps carries an ↗ link that opens the tunnel's
+          far end in a new tab, so there is no typing a URL in front of the
+          room. The link only works once the port-forward is actually running
+          — that is the order: copy, paste, then click.
+          {"\n\n"}
+          Step 4 is worth the twenty seconds even though we set the password
+          ourselves with --set: the chart stores it in a Secret, and base64 -d
+          is all it takes to read it back. Encoded, not encrypted — the same
+          point from the Secrets session, now on a component the audience
+          actually wants to log into. Without that --set flag the chart
+          generates a random password and this step stops being optional.
+          {"\n\n"}
+          In Grafana log in with admin / admin; the bundled Kubernetes
+          dashboards are already populated, no dashboard building required.
+          Dashboards → "Kubernetes / Compute Resources / Namespace (Pods)",
+          then set the namespace variable to session-5 to see our own Pods. It
+          defaults to a one-hour window — which is the point: an hour of
+          history that kubectl top never had.
+          {"\n\n"}
+          If you open Prometheus instead (step 5), the query worth typing is
+          {'rate(container_cpu_usage_seconds_total{namespace="session-5"}[5m])'}{" "}
+          — a rate over a window you choose, computed from history. That is
+          precisely what kubectl top cannot do: it only ever knows the latest
+          scrape.
+          {"\n\n"}
+          Say plainly, one more time: none of this ships with Kubernetes.
+          Components expose /metrics in a Prometheus-compatible format; nothing
+          collects it until you deploy something that does.
+          {"\n\n"}
+          Uninstall with: helm uninstall monitoring -n monitoring
           {"\n\n"}
           References: Kubernetes — System Metrics
           https://kubernetes.io/docs/concepts/cluster-administration/system-metrics/
           and the Metrics Reference
-          https://kubernetes.io/docs/reference/instrumentation/metrics/ , which
-          shows just how much more than CPU and memory is exposed.
+          https://kubernetes.io/docs/reference/instrumentation/metrics/
         </Notes>
       </Slide>
 
@@ -554,12 +633,23 @@ export default function App() {
           Put the cluster back
         </Heading>
         <Text fontSize="1rem" color={COLORS.dim} textAlign="left" margin="0 0 1rem 0">
-          We added one thing during this session. Removing it is part of the
-          work, not an afterthought — and it proves the "before" state was real.
+          We installed two things during this session. Removing them is part of
+          the work, not an afterthought — and it proves the "before" state was
+          real.
         </Text>
         <InvestigationPanel
           terminalHeight="34vh"
           steps={[
+            {
+              question: "Remove Prometheus, Grafana and Alertmanager",
+              command: "helm uninstall monitoring -n monitoring",
+              expect: "Everything the chart created, gone",
+            },
+            {
+              question: "And the namespace it lived in",
+              command: "kubectl delete namespace monitoring",
+              expect: "helm leaves this behind — it did not create it",
+            },
             {
               question: "Remove Metrics Server",
               command:
@@ -581,7 +671,22 @@ export default function App() {
           Worth saying plainly: the reason this demo could show `kubectl top`
           failing is that nobody had installed Metrics Server. If we walk away
           leaving it installed, the next person to run this deck gets a
-          different story. Cleaning up keeps the lesson reproducible.
+          different story. Cleaning up keeps the lesson reproducible — the same
+          applies to the Prometheus stack and the /metrics slide.
+          {"\n\n"}
+          Note the asymmetry in the first two steps: helm removes what the
+          chart created, but not the namespace, because --create-namespace made
+          it outside the release. That is a small, real lesson about Helm
+          ownership, worth ten seconds if the room is engaged.
+          {"\n\n"}
+          Same story, one level up: ten monitoring.coreos.com CRDs survive the
+          uninstall by design, so that removing a release never deletes the
+          custom objects someone else may still be using. Check with
+          kubectl get crd | grep monitoring.coreos.com — harmless to leave, and
+          if you want them gone you delete them explicitly.
+          {"\n\n"}
+          If a port-forward is still running in another terminal, it dies on
+          its own once the Service disappears.
           {"\n\n"}
           The full teardown order (Kubernetes objects first, so the ALB and the
           EBS volume are released before Terraform destroys the cluster under

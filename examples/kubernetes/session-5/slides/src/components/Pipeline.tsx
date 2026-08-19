@@ -69,6 +69,9 @@ function StageBox({ stage }: { stage: Stage }) {
         borderRadius: "9px",
         padding: "0.7rem 0.8rem",
         textAlign: "center",
+        // So a stage that changes state mid-slide (CollectorPipeline)
+        // reads as the same box being filled in, not as a new box.
+        transition: "border-color 0.35s ease, background 0.35s ease",
       }}
     >
       <div
@@ -83,6 +86,7 @@ function StageBox({ stage }: { stage: Stage }) {
                 ? COLORS.warn
                 : COLORS.text,
           wordBreak: "break-word",
+          transition: "color 0.35s ease",
         }}
       >
         {stage.label}
