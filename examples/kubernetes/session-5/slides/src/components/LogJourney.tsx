@@ -26,7 +26,7 @@ export function LogJourney() {
   return (
     <svg
       viewBox="0 0 1040 300"
-      style={{ width: "100%", maxHeight: "42vh", display: "block" }}
+      style={{ width: "100%", maxHeight: "330px", display: "block" }}
       role="img"
       aria-label="A log line travels from the application's stdout through the container runtime to files on the node, where kubectl logs reads it; a node agent ships it to a central backend before the Pod is deleted"
     >

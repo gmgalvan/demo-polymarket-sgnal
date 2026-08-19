@@ -35,9 +35,16 @@ export type Step = {
   link?: { href: string; label: string };
 };
 
+/** NOTE ON UNITS: heights here are px in DECK coordinates, never vh.
+ * Spectacle renders the deck at a fixed 1366x768 and CSS-transforms it to
+ * fit the window, but vh resolves against the real browser viewport,
+ * before that transform. On a 1346px-tall window "46vh" came out as 619px
+ * against a 768px slide - 80% of it - so the panel ran off the bottom, and
+ * the overflow changed with window size. About 655px is usable per slide
+ * once Slide padding and the footer template are taken out. */
 export function InvestigationPanel({
   steps,
-  terminalHeight = "52vh",
+  terminalHeight = "455px",
   leftWidth = "46%",
   onStepChange,
 }: {
@@ -59,15 +66,23 @@ export function InvestigationPanel({
         gap: "1.4rem",
         alignItems: "stretch",
         height: terminalHeight,
+        // A flex item's automatic minimum size is min-content, which
+        // silently overrides the height above: with enough steps the
+        // column grew past it, overflowY never engaged, and the last
+        // card ran off the bottom of the slide. minHeight:0 is what
+        // makes the declared height authoritative.
+        minHeight: 0,
+        maxHeight: terminalHeight,
       }}
     >
       <div
         style={{
           flex: `0 0 ${leftWidth}`,
           minWidth: 0,
+          minHeight: 0,
           display: "flex",
           flexDirection: "column",
-          gap: "0.5rem",
+          gap: "0.4rem",
           overflowY: "auto",
         }}
       >
@@ -139,7 +154,10 @@ function StepCard({
         background: active ? "rgba(79,140,255,0.12)" : COLORS.panel,
         border: `1px solid ${active ? COLORS.accent : COLORS.border}`,
         borderRadius: "9px",
-        padding: "0.6rem 0.8rem",
+        padding: "0.5rem 0.75rem",
+        // Cards must not shrink: in a scrolling column a squashed card
+        // hides its own command text.
+        flex: "0 0 auto",
         cursor: "pointer",
         transition: "background 0.15s ease, border-color 0.15s ease",
       }}
@@ -150,7 +168,7 @@ function StepCard({
           gap: "0.6rem",
           alignItems: "baseline",
           justifyContent: "space-between",
-          marginBottom: "0.35rem",
+          marginBottom: "0.28rem",
         }}
       >
         <span

@@ -25,7 +25,7 @@ export function CollectorPipeline({
   after,
   steps,
   revealAtStep,
-  terminalHeight = "40vh",
+  terminalHeight = "360px",
   leftWidth = "52%",
 }: {
   /** Stages shown before the install step is reached. */

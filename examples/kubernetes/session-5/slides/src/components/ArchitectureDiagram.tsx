@@ -38,7 +38,7 @@ export function ArchitectureDiagram() {
   return (
     <svg
       viewBox="0 0 1100 400"
-      style={{ width: "100%", maxHeight: "56vh", display: "block" }}
+      style={{ width: "100%", maxHeight: "430px", display: "block" }}
       role="img"
       aria-label="Architecture: a browser reaches an ALB, which routes through an Ingress to the frontend, backend and MongoDB inside the EKS session-5 namespace, with MongoDB backed by an EBS volume outside the cluster"
     >
