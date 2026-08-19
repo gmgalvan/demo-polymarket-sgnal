@@ -23,5 +23,6 @@ module "vpc" {
   enable_s3_gateway_endpoint = var.enable_s3_gateway_endpoint
   enable_flow_logs           = var.enable_flow_logs
   additional_tags            = var.additional_tags
+  eks_cluster_name           = var.eks_cluster_name
 }
 

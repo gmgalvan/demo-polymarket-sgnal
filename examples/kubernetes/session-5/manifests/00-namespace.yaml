@@ -1,0 +1,6 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: session-5
+  labels:
+    app.kubernetes.io/part-of: session-5

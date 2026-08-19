@@ -1,0 +1,27 @@
+# Same StorageClass as examples/kubernetes/session-3/3-storage/04-storageclass-ebs.yaml,
+# defined again here so this folder is self-contained and doesn't
+# require session-3 to already be applied. StorageClass is
+# cluster-scoped and this is byte-identical to session-3's, so
+# `kubectl apply` is a no-op if that one is already in the cluster.
+#
+# Requires the aws-ebs-csi-driver add-on to be installed on the
+# cluster (see session-3/3-storage/README.md).
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ebs-sc
+  labels:
+    app.kubernetes.io/part-of: session-5
+provisioner: ebs.csi.aws.com
+parameters:
+  type: gp3
+  encrypted: "true"
+# Delete: removing the PVC also deletes the EBS volume. For the demo's
+# throwaway data that's fine; a real database would likely use Retain
+# so an accidental `kubectl delete pvc` can't destroy the data.
+reclaimPolicy: Delete
+# WaitForFirstConsumer: the volume is created only once a Pod is
+# scheduled, so it lands in the same AZ as the node - an EBS volume
+# cannot be attached across AZs.
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true

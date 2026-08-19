@@ -87,3 +87,17 @@ variable "map_public_ip_on_launch" {
   type        = bool
   default     = true
 }
+
+variable "eks_cluster_name" {
+  description = <<-EOT
+    EKS cluster name used to tag subnets for ALB/NLB auto-discovery by the
+    AWS Load Balancer Controller: `kubernetes.io/cluster/<name> = shared` on
+    every subnet, `kubernetes.io/role/elb = 1` on public subnets, and
+    `kubernetes.io/role/internal-elb = 1` on private subnets. Must match the
+    `cluster_name` used in lv-2-core-compute/eks. The VPC is applied before
+    the cluster exists, so this is just a forward-reference string - no
+    actual dependency on the EKS stack.
+  EOT
+  type        = string
+  default     = "352-demo-dev-eks"
+}

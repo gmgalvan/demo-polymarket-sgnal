@@ -105,7 +105,9 @@ resource "aws_subnet" "public" {
   map_public_ip_on_launch = var.map_public_ip_on_launch
 
   tags = merge(local.common_tags, {
-    Name = "${var.name}-public-subnet-${format("%03d", count.index + 1)}"
+    Name                                            = "${var.name}-public-subnet-${format("%03d", count.index + 1)}"
+    "kubernetes.io/cluster/${var.eks_cluster_name}" = "shared"
+    "kubernetes.io/role/elb"                        = "1"
   })
 }
 
@@ -117,7 +119,9 @@ resource "aws_subnet" "private" {
   availability_zone = element(var.availability_zones, count.index)
 
   tags = merge(local.common_tags, {
-    Name = "${var.name}-private-subnet-${format("%03d", count.index + 1)}"
+    Name                                            = "${var.name}-private-subnet-${format("%03d", count.index + 1)}"
+    "kubernetes.io/cluster/${var.eks_cluster_name}" = "shared"
+    "kubernetes.io/role/internal-elb"               = "1"
   })
 }
 
@@ -130,7 +134,9 @@ resource "aws_subnet" "public_additional" {
   map_public_ip_on_launch = true
 
   tags = merge(local.common_tags, {
-    Name = "${var.name}-public-additional-subnet-${format("%03d", count.index + 1)}"
+    Name                                            = "${var.name}-public-additional-subnet-${format("%03d", count.index + 1)}"
+    "kubernetes.io/cluster/${var.eks_cluster_name}" = "shared"
+    "kubernetes.io/role/elb"                        = "1"
   })
 }
 
@@ -142,7 +148,9 @@ resource "aws_subnet" "private_additional" {
   availability_zone = element(var.availability_zones, count.index % length(var.availability_zones))
 
   tags = merge(local.common_tags, {
-    Name = "${var.name}-private-additional-subnet-${format("%03d", count.index + 1)}"
+    Name                                            = "${var.name}-private-additional-subnet-${format("%03d", count.index + 1)}"
+    "kubernetes.io/cluster/${var.eks_cluster_name}" = "shared"
+    "kubernetes.io/role/internal-elb"               = "1"
   })
 }
 

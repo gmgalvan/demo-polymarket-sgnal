@@ -34,6 +34,12 @@ variable "enable_flow_logs" {
   default     = true
 }
 
+variable "eks_cluster_name" {
+  description = "EKS cluster name used to tag subnets for ALB/NLB auto-discovery. Must match cluster_name in lv-2-core-compute/eks."
+  type        = string
+  default     = "352-demo-dev-eks"
+}
+
 variable "additional_tags" {
   description = "Additional tags applied to all resources."
   type        = map(string)

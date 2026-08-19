@@ -1,0 +1,40 @@
+# ClusterIP for both app Deployments (mongo's own Service lives next to it
+# in 02-mongo.yaml, since it's tightly coupled to that storage story).
+#
+# api-spacy-finance is intentionally never referenced by any Ingress -
+# see 06-ingress.yaml. It's reachable only from inside the cluster, at
+# api-spacy-finance:80, which is exactly what the frontend's nginx
+# proxies to.
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-spacy-finance
+  namespace: session-5
+  labels:
+    app.kubernetes.io/name: api-spacy-finance
+    app.kubernetes.io/part-of: session-5
+spec:
+  type: ClusterIP
+  selector:
+    app: api-spacy-finance
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: finance-chat-frontend
+  namespace: session-5
+  labels:
+    app.kubernetes.io/name: finance-chat-frontend
+    app.kubernetes.io/part-of: session-5
+spec:
+  type: ClusterIP
+  selector:
+    app: finance-chat-frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

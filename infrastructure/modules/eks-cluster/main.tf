@@ -186,6 +186,48 @@ module "eks" {
   tags = local.tags
 }
 
+
+# EBS CSI driver: required for any PersistentVolumeClaim backed by the
+# ebs-sc StorageClass to actually provision a volume (e.g. MongoDB in
+# examples/kubernetes/session-5). Not one of the inline `cluster_addons`
+# above because its IRSA role needs module.eks.oidc_provider_arn, and
+# module.eks itself can't depend on a module that depends on module.eks -
+# same reason Karpenter below is a separate resource instead.
+module "ebs_csi_irsa" {
+  source = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  # Pinned to the 5.x line (not 6.6.1 like the IRSA roles in lv-3, which are
+  # separate root modules on aws provider v6): terraform-aws-modules/eks/aws
+  # ~> 20.0 above constrains this root module to aws provider < 6.0.0, module
+  # version 6.x requires aws provider >= 6.28.0, and the submodule was
+  # renamed from `iam-role-for-service-accounts` to
+  # `iam-role-for-service-accounts-eks` somewhere in the 5.x line.
+  version = "~> 5.39"
+
+  role_name = "${var.cluster_name}-ebs-csi-driver"
+
+  attach_ebs_csi_policy = true
+
+  oidc_providers = {
+    eks = {
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = ["kube-system:ebs-csi-controller-sa"]
+    }
+  }
+
+  tags = var.common_tags
+}
+
+resource "aws_eks_addon" "ebs_csi_driver" {
+  cluster_name                = module.eks.cluster_name
+  addon_name                  = "aws-ebs-csi-driver"
+  service_account_role_arn    = module.ebs_csi_irsa.iam_role_arn
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  tags = var.common_tags
+
+  depends_on = [module.eks]
+}
+
 module "karpenter" {
   source  = "terraform-aws-modules/eks/aws//modules/karpenter"
   version = "~> 20.0"

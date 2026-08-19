@@ -1,0 +1,53 @@
+# Runs the whole demo stack locally with the SAME images that would go
+# to EKS: no `build:` here on purpose, both app images are pulled from
+# ECR. mongo_data is the storage-layer stand-in for this local run -
+# in Kubernetes this becomes a PVC backed by an EBS (or EFS) volume via
+# the CSI driver, same as the session-3 storage lab.
+#
+# Usage: see README.md in this folder.
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: finance-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    image: ${ECR_REGISTRY}/api-spacy-finance:${IMAGE_TAG:-latest}
+    container_name: finance-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      MONGO_URI: mongodb://mongo:27017
+      MONGO_DB_NAME: finance_qa
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  frontend:
+    image: ${ECR_REGISTRY}/finance-chat-frontend:${IMAGE_TAG:-latest}
+    container_name: finance-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    environment:
+      # nginx inside this container proxies /health, /ask, /queries to the
+      # api service on the compose network - the browser only ever talks
+      # to :5173. Same image, same mechanism used in Kubernetes with
+      # API_UPSTREAM=api-spacy-finance:80.
+      API_UPSTREAM: api:8000
+    depends_on:
+      - api
+
+volumes:
+  mongo_data:

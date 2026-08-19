@@ -1,0 +1,112 @@
+# MongoDB backing the finance Q&A app: the `terms` (glossary) and
+# `queries` (log of every question asked) collections described in
+# api-spacy-finance/app/db.py.
+#
+# Storage: the PVC below dynamically provisions a 10Gi gp3 EBS volume
+# through the ebs-sc StorageClass - no need to hand-write a
+# PersistentVolume, Kubernetes creates it and binds it to the PVC
+# automatically. Locally this played the role of the `mongo_data`
+# Docker named volume in docker-compose.yml; here it's the real thing.
+#
+# ReadWriteOnce + a single replica + `strategy: Recreate`: an EBS
+# volume attaches to one node at a time, so a rolling update would try
+# to attach the same volume to the old and new Pod at once and get
+# stuck forever. Recreate tears the old Pod down (and releases the
+# volume) before starting the new one.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongo-data
+  namespace: session-5
+  labels:
+    app.kubernetes.io/part-of: session-5
+    app.kubernetes.io/component: database
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ebs-sc
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongo
+  namespace: session-5
+  labels:
+    app: mongo
+    app.kubernetes.io/name: mongo
+    app.kubernetes.io/instance: mongo
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: session-5
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mongo
+  template:
+    metadata:
+      labels:
+        app: mongo
+        app.kubernetes.io/name: mongo
+        app.kubernetes.io/instance: mongo
+        app.kubernetes.io/component: database
+        app.kubernetes.io/part-of: session-5
+    spec:
+      # CPU-only, no accelerator needed - same node pool as the rest
+      # of this demo except the LLM itself.
+      nodeSelector:
+        workload: core
+      containers:
+        - name: mongo
+          image: mongo:7
+          ports:
+            - name: mongo
+              containerPort: 27017
+          readinessProbe:
+            exec:
+              command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: mongo-data
+              mountPath: /data/db
+      volumes:
+        - name: mongo-data
+          persistentVolumeClaim:
+            claimName: mongo-data
+---
+# ClusterIP with a stable DNS name (mongo.session-5.svc.cluster.local,
+# or just "mongo" from within the namespace) - this is what
+# api-spacy-finance's MONGO_URI points at.
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo
+  namespace: session-5
+  labels:
+    app.kubernetes.io/name: mongo
+    app.kubernetes.io/part-of: session-5
+spec:
+  selector:
+    app: mongo
+  ports:
+    - name: mongo
+      port: 27017
+      targetPort: mongo

@@ -1,0 +1,62 @@
+# finance-chat-frontend: static React bundle served by nginx. This is the
+# ONLY thing exposed via Ingress (see 06-ingress.yaml) - the backend
+# Service stays ClusterIP-only. nginx inside this container proxies
+# /health, /ask, /queries to the backend at API_UPSTREAM (see
+# nginx.conf.template), so the browser only ever talks to this Pod. The
+# same image is used unchanged in docker-compose, just with a different
+# API_UPSTREAM value.
+#
+# ${ECR_REGISTRY} / ${IMAGE_TAG} are placeholders - see README.md.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: finance-chat-frontend
+  namespace: session-5
+  labels:
+    app: finance-chat-frontend
+    app.kubernetes.io/name: finance-chat-frontend
+    app.kubernetes.io/instance: finance-chat-frontend
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/part-of: session-5
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: finance-chat-frontend
+  template:
+    metadata:
+      labels:
+        app: finance-chat-frontend
+        app.kubernetes.io/name: finance-chat-frontend
+        app.kubernetes.io/instance: finance-chat-frontend
+        app.kubernetes.io/component: frontend
+        app.kubernetes.io/part-of: session-5
+    spec:
+      nodeSelector:
+        workload: core
+      containers:
+        - name: frontend
+          image: ${ECR_REGISTRY}/finance-chat-frontend:${IMAGE_TAG}
+          ports:
+            - name: http
+              containerPort: 80
+          env:
+            # Matches the api-spacy-finance Service name + port in
+            # 05-services.yaml. Resolved via in-cluster DNS.
+            - name: API_UPSTREAM
+              value: api-spacy-finance:80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi

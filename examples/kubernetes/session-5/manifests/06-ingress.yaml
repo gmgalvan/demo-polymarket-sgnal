@@ -1,0 +1,51 @@
+# Exposes ONLY the frontend publicly, via the AWS Load Balancer Controller
+# + Route53 (gmgalvan.com, managed by external-dns). Same annotation
+# pattern as session-3/4-networking/04-ingress-alb.yaml.
+#
+# The backend (api-spacy-finance) has no Ingress rule anywhere and stays
+# ClusterIP-only - it's not reachable from outside the cluster at all. The
+# browser reaches it indirectly: nginx inside the frontend Pod proxies
+# /health, /ask, /queries to the backend Service (see
+# finance-chat-frontend/nginx.conf.template and API_UPSTREAM in
+# 04-frontend-deployment.yaml).
+#
+# HTTPS: ${ACM_CERT_ARN} is rendered by envsubst, same as the image
+# placeholders - see README.md. Read it straight from Terraform:
+#   export ACM_CERT_ARN=$(terraform -chdir=../../../../infrastructure/\
+#     lv-3-cluster-services/acm-certificate output -raw certificate_arn)
+# It's a variable rather than a literal because the certificate is
+# recreated with a new ARN every time that layer is destroyed and
+# reapplied, and a stale hardcoded ARN makes the ALB come up without a
+# working HTTPS listener.
+#
+# listen-ports opens both 80 and 443 on the same ALB, and ssl-redirect
+# bounces plain HTTP straight to HTTPS.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: finance-frontend
+  namespace: session-5
+  labels:
+    app.kubernetes.io/part-of: session-5
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /
+    alb.ingress.kubernetes.io/certificate-arn: ${ACM_CERT_ARN}
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    external-dns.alpha.kubernetes.io/hostname: finance.gmgalvan.com
+    external-dns.alpha.kubernetes.io/ttl: "60"
+spec:
+  ingressClassName: alb
+  rules:
+    - host: finance.gmgalvan.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: finance-chat-frontend
+                port:
+                  name: http
