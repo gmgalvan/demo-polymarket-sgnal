@@ -58,12 +58,15 @@ PersistentVolume automatically, no hand-written PV needed.
 
 ## Applying (when ready)
 
-`${ECR_REGISTRY}` / `${IMAGE_TAG}` in the Deployment manifests are
-placeholders rendered with `envsubst`:
+`${ECR_REGISTRY}` / `${IMAGE_TAG}` in the Deployments, and
+`${APP_HOSTNAME}` / `${ACM_CERT_ARN}` in the Ingress, are placeholders
+rendered with `envsubst`:
 
 ```bash
 export ECR_REGISTRY=$(aws sts get-caller-identity --query Account --output text).dkr.ecr.us-east-1.amazonaws.com
 export IMAGE_TAG=latest
+export APP_HOSTNAME=finance.yourdomain.com     # 06-ingress.yaml
+export ACM_CERT_ARN=...                        # 06-ingress.yaml, see that file
 
 cd examples/kubernetes/session-5/manifests
 for f in *.yaml; do

@@ -1,5 +1,5 @@
 # Exposes ONLY the frontend publicly, via the AWS Load Balancer Controller
-# + Route53 (example.com, managed by external-dns). Same annotation
+# + Route53 (the zone external-dns manages). Same annotation
 # pattern as session-3/4-networking/04-ingress-alb.yaml.
 #
 # The backend (api-spacy-finance) has no Ingress rule anywhere and stays
@@ -8,6 +8,12 @@
 # /health, /ask, /queries to the backend Service (see
 # finance-chat-frontend/nginx.conf.template and API_UPSTREAM in
 # 04-frontend-deployment.yaml).
+#
+# ${APP_HOSTNAME} is the public name, rendered by envsubst - it must be a
+# name inside the Route 53 zone external-dns manages and must match the
+# domain the ACM certificate covers, or the record is never created and
+# the HTTPS listener has no matching certificate. Example:
+#   export APP_HOSTNAME=finance.yourdomain.com
 #
 # HTTPS: ${ACM_CERT_ARN} is rendered by envsubst, same as the image
 # placeholders - see README.md. Read it straight from Terraform:
@@ -34,12 +40,12 @@ metadata:
     alb.ingress.kubernetes.io/certificate-arn: ${ACM_CERT_ARN}
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
     alb.ingress.kubernetes.io/ssl-redirect: "443"
-    external-dns.alpha.kubernetes.io/hostname: finance.example.com
+    external-dns.alpha.kubernetes.io/hostname: ${APP_HOSTNAME}
     external-dns.alpha.kubernetes.io/ttl: "60"
 spec:
   ingressClassName: alb
   rules:
-    - host: finance.example.com
+    - host: ${APP_HOSTNAME}
       http:
         paths:
           - path: /

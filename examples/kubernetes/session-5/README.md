@@ -62,7 +62,11 @@ aws eks update-kubeconfig --region us-east-1 --name 352-demo-dev-eks
 ```
 
 **2. Cluster services** — the controllers that turn Kubernetes objects
-into AWS resources. These must exist *before* anything that needs them:
+into AWS resources. These must exist *before* anything that needs them.
+
+The `hosted_zone_id`, `domain_filter` and `domain_name` variables in
+these layers default to **placeholders**, not to a real zone. Pass your
+own with `-var` (or an untracked `.tfvars`) or the apply fails:
 
 ```bash
 cd ../../lv-3-cluster-services/aws-load-balancer-controller
@@ -87,6 +91,7 @@ make all        # create the repos, then build+push both images (amd64+arm64)
 ```bash
 export ECR_REGISTRY=$(aws sts get-caller-identity --query Account --output text).dkr.ecr.us-east-1.amazonaws.com
 export IMAGE_TAG=latest
+export APP_HOSTNAME=finance.yourdomain.com     # inside the zone external-dns manages
 export ACM_CERT_ARN=$(cd ../../../../infrastructure/lv-3-cluster-services/acm-certificate \
   && terraform output -raw certificate_arn)
 
@@ -95,7 +100,15 @@ for f in *.yaml; do envsubst < "$f" | kubectl apply -f -; done
 ```
 
 The numeric prefixes are the order: namespace, StorageClass, Mongo (PVC
-first), backend, frontend, Services, Ingress. Verify with:
+first), backend, frontend, Services, Ingress.
+
+`APP_HOSTNAME` must be a name inside the Route 53 zone external-dns
+manages *and* must match what the ACM certificate covers — those three
+have to agree or the DNS record is never created and the HTTPS listener
+comes up without a matching certificate. Set the same value in the
+`domain_name` variable of the acm-certificate layer.
+
+Verify with:
 
 ```bash
 kubectl -n session-5 get pvc,pods,svc,ingress
