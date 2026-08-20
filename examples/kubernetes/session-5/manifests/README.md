@@ -11,7 +11,7 @@ exists. Nothing here has been run against a real or local cluster.
 03-backend-deployment.yaml   Deployment for api-spacy-finance (never in an Ingress)
 04-frontend-deployment.yaml  Deployment for finance-chat-frontend
 05-services.yaml             ClusterIP Services for backend + frontend
-06-ingress.yaml               ALB Ingress: finance.gmgalvan.com - frontend only
+06-ingress.yaml               ALB Ingress: finance.example.com - frontend only
 ```
 
 ## Only the frontend is exposed

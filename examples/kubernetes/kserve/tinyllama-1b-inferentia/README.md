@@ -60,7 +60,7 @@ For a quick demo, you can avoid editing the manifest on disk and replace the
 placeholder inline when applying:
 
 ```bash
-sed 's|<AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/vllm-neuron:latest|023890853822.dkr.ecr.us-east-1.amazonaws.com/vllm-neuron:latest|' \
+sed 's|<AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/vllm-neuron:latest|111122223333.dkr.ecr.us-east-1.amazonaws.com/vllm-neuron:latest|' \
 examples/kubernetes/kserve/tinyllama-1b-inferentia/inferenceservice.yaml | kubectl apply -n demo-examples -f -
 ```
 
@@ -76,7 +76,7 @@ kubectl get nodepools   # should show neuron-inference
 ```bash
 kubectl apply -f examples/kubernetes/00-namespace.yaml
 
-sed 's|<AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/vllm-neuron:latest|023890853822.dkr.ecr.us-east-1.amazonaws.com/vllm-neuron:latest|' \
+sed 's|<AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/vllm-neuron:latest|111122223333.dkr.ecr.us-east-1.amazonaws.com/vllm-neuron:latest|' \
 examples/kubernetes/kserve/tinyllama-1b-inferentia/inferenceservice.yaml | kubectl apply -n demo-examples -f -
 ```
 

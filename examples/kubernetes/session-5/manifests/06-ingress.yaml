@@ -1,5 +1,5 @@
 # Exposes ONLY the frontend publicly, via the AWS Load Balancer Controller
-# + Route53 (gmgalvan.com, managed by external-dns). Same annotation
+# + Route53 (example.com, managed by external-dns). Same annotation
 # pattern as session-3/4-networking/04-ingress-alb.yaml.
 #
 # The backend (api-spacy-finance) has no Ingress rule anywhere and stays
@@ -34,12 +34,12 @@ metadata:
     alb.ingress.kubernetes.io/certificate-arn: ${ACM_CERT_ARN}
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
     alb.ingress.kubernetes.io/ssl-redirect: "443"
-    external-dns.alpha.kubernetes.io/hostname: finance.gmgalvan.com
+    external-dns.alpha.kubernetes.io/hostname: finance.example.com
     external-dns.alpha.kubernetes.io/ttl: "60"
 spec:
   ingressClassName: alb
   rules:
-    - host: finance.gmgalvan.com
+    - host: finance.example.com
       http:
         paths:
           - path: /

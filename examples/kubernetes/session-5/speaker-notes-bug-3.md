@@ -58,7 +58,7 @@ Duración estimada: **6–8 minutos**.
 
 > Le saqué la base de datos hace veinte segundos.
 
-`[ACCIÓN] Si hay tiempo: abrir finance.gmgalvan.com y preguntar 2–3 veces en la UI]`
+`[ACCIÓN] Si hay tiempo: abrir finance.example.com y preguntar 2–3 veces en la UI]`
 
 > Y no es que tuvo suerte. Pregunten lo que quieran, contesta siempre.
 >

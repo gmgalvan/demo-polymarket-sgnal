@@ -201,7 +201,7 @@ export default function App() {
             </Text>
             <CopyableCommand command="kubectl -n session-5 get pvc,pods" />
             <CopyableCommand command="kubectl -n session-5 describe pod -l app=api-spacy-finance" />
-            <CopyableCommand command="curl https://finance.gmgalvan.com/health" />
+            <CopyableCommand command="curl https://finance.example.com/health" />
             <CopyableCommand command="kubectl -n session-5 logs deploy/api-spacy-finance" />
             <Text
               fontSize="0.85rem"
@@ -629,12 +629,12 @@ export default function App() {
             {
               question: "Break it",
               command:
-                "kubectl -n session-5 set image deploy/api-spacy-finance api=023890853822.dkr.ecr.us-east-1.amazonaws.com/api-spacy-finance:v99",
+                "kubectl -n session-5 set image deploy/api-spacy-finance api=111122223333.dkr.ecr.us-east-1.amazonaws.com/api-spacy-finance:v99",
               expect: "Give it ~20s, then go to the next slide",
             },
             {
               question: "Is the site down?",
-              command: "curl -s -o /dev/null -w '%{http_code}\\n' https://finance.gmgalvan.com/",
+              command: "curl -s -o /dev/null -w '%{http_code}\\n' https://finance.example.com/",
               expect: "200. The old Pods are still serving — that is the point",
             },
           ]}
@@ -729,7 +729,7 @@ export default function App() {
             },
             {
               question: "Now try the site",
-              command: "curl -s https://finance.gmgalvan.com/health | head -4",
+              command: "curl -s https://finance.example.com/health | head -4",
               expect: "502 Bad Gateway. The page still loads; the API is gone",
             },
           ]}
@@ -826,7 +826,7 @@ export default function App() {
             {
               question: "Ask a question, like a user",
               command:
-                "curl -s -X POST https://finance.gmgalvan.com/ask -H 'Content-Type: application/json' -d '{\"question\":\"what is inflation?\"}'",
+                "curl -s -X POST https://finance.example.com/ask -H 'Content-Type: application/json' -d '{\"question\":\"what is inflation?\"}'",
               expect: "A correct answer, HTTP 200. Nothing looks wrong",
             },
           ]}
@@ -869,12 +869,12 @@ export default function App() {
             },
             {
               question: "What does the health endpoint claim?",
-              command: "curl -s https://finance.gmgalvan.com/health",
+              command: "curl -s https://finance.example.com/health",
               expect: 'HTTP 200 — with "database":"unreachable" inside it',
             },
             {
               question: "Is anything being saved?",
-              command: "curl -s https://finance.gmgalvan.com/queries",
+              command: "curl -s https://finance.example.com/queries",
               expect: "[] — same as a brand new app with no traffic",
             },
             {

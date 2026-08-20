@@ -210,7 +210,7 @@ aws ecr list-images --repository-name ${MODEL_REPO} --region ${AWS_REGION}
 For a quick demo, you can avoid editing the manifest on disk and replace the placeholder inline:
 
 ```bash
-sed 's|<AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/models/qwen25-3b:v1|023890853822.dkr.ecr.us-east-1.amazonaws.com/models/qwen25-3b:v1|' \
+sed 's|<AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/models/qwen25-3b:v1|111122223333.dkr.ecr.us-east-1.amazonaws.com/models/qwen25-3b:v1|' \
 examples/kubernetes/base-deployments/01-model-storage/03-oci-volume-mount.yaml | kubectl apply -n demo-examples -f -
 ```
 
@@ -230,7 +230,7 @@ kubectl port-forward -n demo-examples deploy/vllm-gpu-oci 8000:8000
 curl http://127.0.0.1:8000/health
 curl http://127.0.0.1:8000/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -d @/home/gmgalvan/demo-polymarket-sgnal/examples/kubernetes/base-deployments/03-vllm-qwen25-3b-gpu/request.chat-test.json
+  -d @~/demo-polymarket-sgnal/examples/kubernetes/base-deployments/03-vllm-qwen25-3b-gpu/request.chat-test.json
 ```
 
 This validates the main idea of the strategy:

@@ -76,3 +76,12 @@ node_modules/
 # Private talk materials
 docs/talk-outline.md
 docs/talk-script.md
+
+# Terraform state, en cualquier ruta (las reglas de abajo estan scopeadas por
+# carpeta y dejaban pasar un terraform.tfstate en la raiz del repo).
+# El state guarda secretos en texto plano: nunca debe versionarse.
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+crash.log

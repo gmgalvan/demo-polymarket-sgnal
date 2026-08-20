@@ -43,7 +43,7 @@ After applying the annotated session-3 Ingress, verify Route 53 and DNS:
 
 ```bash
 aws route53 list-resource-record-sets \
-  --hosted-zone-id Z08205913ACQUTWJH2PLJ \
+  --hosted-zone-id Z0123456789ABCDEFGHIJ \
   --query "ResourceRecordSets[?contains(Name, 'k8s.demo')]"
 
 dig +short k8s.demo.example.com

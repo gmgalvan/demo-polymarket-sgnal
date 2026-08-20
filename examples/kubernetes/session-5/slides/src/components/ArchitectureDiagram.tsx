@@ -69,7 +69,7 @@ export function ArchitectureDiagram() {
           border and the routing arrow's vertical leg cut through them. */}
       <Node x={8} y={196} w={112} h={54} title="Browser" />
       <text x={8} y={272} fontSize="11.5" fill={C.accent} fontFamily={FONT_MONO}>
-        finance.gmgalvan.com
+        finance.example.com
       </text>
       <text x={8} y={289} fontSize="11.5" fill={C.dim} fontFamily={FONT_MONO}>
         Route 53 · A record

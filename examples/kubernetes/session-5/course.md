@@ -5,7 +5,7 @@ A running log of the Terraform steps actually executed against
 cluster. Kept here (not in `infrastructure/`) because it's a narrative
 of what we did and why, not infrastructure code itself.
 
-Account: `023890853822` (`arn:aws:iam::023890853822:user/ggalv`)
+Account: `111122223333` (`arn:aws:iam::111122223333:user/ggalv`)
 Region: `us-east-1`
 Cluster: `352-demo-dev-eks`
 
@@ -79,8 +79,8 @@ subscription + the imported log group's tags reconciling). Done.
 ```bash
 cd ../../lv-2-core-compute/eks
 terraform init
-terraform plan -var='cluster_admin_principal_arns=["arn:aws:iam::023890853822:user/ggalv"]'
-terraform apply -var='cluster_admin_principal_arns=["arn:aws:iam::023890853822:user/ggalv"]'
+terraform plan -var='cluster_admin_principal_arns=["arn:aws:iam::111122223333:user/ggalv"]'
+terraform apply -var='cluster_admin_principal_arns=["arn:aws:iam::111122223333:user/ggalv"]'
 ```
 
 Plan: 98 to add. Reviewed before applying — 5 managed node groups
@@ -136,7 +136,7 @@ state automatically — no vars needed. `4 added, 0 changed, 0
 destroyed`: IRSA policy + role + attachment, and the Helm release.
 
 **Result:**
-- `iam_role_arn = arn:aws:iam::023890853822:role/352-demo-dev-eks-aws-load-balancer-controller`
+- `iam_role_arn = arn:aws:iam::111122223333:role/352-demo-dev-eks-aws-load-balancer-controller`
 - 2 controller Pods running in `kube-system`, confirmed with:
 
 ```bash
@@ -156,22 +156,22 @@ ALB — it doesn't create one yet by itself, only once we apply
 ```bash
 cd ../external-dns
 terraform init
-terraform plan  -var="domain_filter=gmgalvan.com"
-terraform apply -var="domain_filter=gmgalvan.com"
+terraform plan  -var="domain_filter=example.com"
+terraform apply -var="domain_filter=example.com"
 ```
 
-The module's default `hosted_zone_id` (`Z08205913ACQUTWJH2PLJ`) was
-already the real `gmgalvan.com` zone in this account — only
+The module's default `hosted_zone_id` (`Z0123456789ABCDEFGHIJ`) was
+already the real `example.com` zone in this account — only
 `domain_filter` needed overriding (its default was the placeholder
 `example.com`). Verified in the plan before applying: the generated
 IAM policy scopes `route53:ChangeResourceRecordSets` to just that one
-hosted zone ARN (can't touch `gmgalvan.dev`, `fygcreative.com`, etc.).
+hosted zone ARN (can't touch `example.dev`, `example.net`, etc.).
 
 `4 added, 0 changed, 0 destroyed`. Clean apply, no errors.
 
 **Result:**
-- `iam_role_arn = arn:aws:iam::023890853822:role/352-demo-dev-eks-external-dns`
-- `managed_hosted_zone_id = Z08205913ACQUTWJH2PLJ`
+- `iam_role_arn = arn:aws:iam::111122223333:role/352-demo-dev-eks-external-dns`
+- `managed_hosted_zone_id = Z0123456789ABCDEFGHIJ`
 
 ```bash
 kubectl -n kube-system get pods -l app.kubernetes.io/instance=external-dns
@@ -181,7 +181,7 @@ external-dns-7bf4bd574-m687q   1/1   Running
 ```
 
 This is what turns the
-`external-dns.alpha.kubernetes.io/hostname: finance.gmgalvan.com`
+`external-dns.alpha.kubernetes.io/hostname: finance.example.com`
 annotation on the Ingress into an actual Route53 record pointing at
 the ALB, once the Ingress is applied.
 
@@ -190,7 +190,7 @@ the ALB, once the Ingress is applied.
 ## 5. Deploying the app surfaced two real bugs — both fixed
 
 ```bash
-export ECR_REGISTRY=023890853822.dkr.ecr.us-east-1.amazonaws.com
+export ECR_REGISTRY=111122223333.dkr.ecr.us-east-1.amazonaws.com
 export IMAGE_TAG=latest
 cd examples/kubernetes/session-5/manifests
 for f in *.yaml; do envsubst < "$f" | kubectl apply -f -; done
@@ -269,7 +269,7 @@ pushed, and rolled out:
 ```bash
 cd examples/kubernetes/session-5/infra-images && make build
 
-export ECR_REGISTRY=023890853822.dkr.ecr.us-east-1.amazonaws.com
+export ECR_REGISTRY=111122223333.dkr.ecr.us-east-1.amazonaws.com
 export IMAGE_TAG=latest
 cd ../manifests
 envsubst < 03-backend-deployment.yaml | kubectl apply -f -
@@ -292,21 +292,21 @@ pod/finance-chat-frontend-...            1/1  Running
 pod/finance-chat-frontend-...            1/1  Running
 pod/mongo-dd487d5bc-n6jx8                1/1  Running  0
 
-ingress.networking.k8s.io/finance-frontend   alb   finance.gmgalvan.com   k8s-session5-financef-....elb.amazonaws.com
+ingress.networking.k8s.io/finance-frontend   alb   finance.example.com   k8s-session5-financef-....elb.amazonaws.com
 ```
 
 Tested through the real public URL (DNS → ALB → frontend Pod → nginx
 proxy → backend Pod → Mongo), not port-forwarded or in-cluster:
 
 ```bash
-curl http://finance.gmgalvan.com/health
+curl http://finance.example.com/health
 # {"status":"ok","model":"en_core_web_sm","hardware":"cpu","database":"ok"}
 
-curl -X POST http://finance.gmgalvan.com/ask -H "Content-Type: application/json" \
+curl -X POST http://finance.example.com/ask -H "Content-Type: application/json" \
   -d '{"question": "What is compound interest?"}'
 # {"question":"...","detected_term":"Compound interest","answer":"...","entities":[]}
 
-curl http://finance.gmgalvan.com/queries?limit=3
+curl http://finance.example.com/queries?limit=3
 # [{"question":"What is compound interest?", ..., "matched":true, "latency_ms":5, "created_at":"..."}]
 ```
 
@@ -326,7 +326,7 @@ here. Skipped all of them to keep cost and scope down.
 
 ## 6. `lv-3-cluster-services/acm-certificate` — HTTPS
 
-`https://finance.gmgalvan.com` didn't work up to this point - the
+`https://finance.example.com` didn't work up to this point - the
 Ingress only opened port 80, no certificate, no 443 listener. No
 cert-manager needed: the ALB Controller can reference an ACM
 certificate directly by ARN, so this is a plain ACM + Route53 layer,
@@ -343,14 +343,14 @@ terraform apply
 
 `3 to add, 0 to change, 0 to destroy`: `aws_acm_certificate` (DNS
 validation) + `aws_route53_record` (the CNAME ACM needs to prove
-domain ownership, created in the same `gmgalvan.com` zone external-dns
+domain ownership, created in the same `example.com` zone external-dns
 already manages) + `aws_acm_certificate_validation` (blocks until ACM
 actually marks it `ISSUED` - the whole apply took under a minute).
 
 ```bash
 aws acm describe-certificate --certificate-arn <arn> --region us-east-1 \
   --query 'Certificate.{Status:Status,Domain:DomainName}'
-# {"Status": "ISSUED", "Domain": "finance.gmgalvan.com"}
+# {"Status": "ISSUED", "Domain": "finance.example.com"}
 ```
 
 Cost: effectively none - ACM public certificates are free when used
@@ -362,7 +362,7 @@ Added 3 annotations to `examples/kubernetes/session-5/manifests/
 06-ingress.yaml`:
 
 ```yaml
-alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:023890853822:certificate/98e33f16-9dbb-4bea-89a9-c38b6d6cb54e
+alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:111122223333:certificate/98e33f16-9dbb-4bea-89a9-c38b6d6cb54e
 alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
 alb.ingress.kubernetes.io/ssl-redirect: "443"
 ```
@@ -371,7 +371,7 @@ Re-applied the Ingress - same ALB, no new load balancer, the
 controller just added the 443 listener to the existing one:
 
 ```bash
-export ECR_REGISTRY=023890853822.dkr.ecr.us-east-1.amazonaws.com
+export ECR_REGISTRY=111122223333.dkr.ecr.us-east-1.amazonaws.com
 export IMAGE_TAG=latest
 cd examples/kubernetes/session-5/manifests
 envsubst < 06-ingress.yaml | kubectl apply -f -
@@ -380,14 +380,14 @@ envsubst < 06-ingress.yaml | kubectl apply -f -
 Verified for real:
 
 ```bash
-curl https://finance.gmgalvan.com/health
+curl https://finance.example.com/health
 # {"status":"ok","model":"en_core_web_sm","hardware":"cpu","database":"ok"}
 
-curl -o /dev/null -w "HTTP %{http_code} -> %{redirect_url}\n" http://finance.gmgalvan.com/
-# HTTP 301 -> https://finance.gmgalvan.com:443/
+curl -o /dev/null -w "HTTP %{http_code} -> %{redirect_url}\n" http://finance.example.com/
+# HTTP 301 -> https://finance.example.com:443/
 
-curl -v https://finance.gmgalvan.com/ 2>&1 | grep -i "subject:\|issuer:"
-# subject: CN=finance.gmgalvan.com
+curl -v https://finance.example.com/ 2>&1 | grep -i "subject:\|issuer:"
+# subject: CN=finance.example.com
 # issuer: C=US; O=Amazon; CN=Amazon RSA 2048 M01
 ```
 

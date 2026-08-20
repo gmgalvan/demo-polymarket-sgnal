@@ -213,7 +213,7 @@ In another terminal:
 curl http://127.0.0.1:8000/health
 curl http://127.0.0.1:8000/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -d @/home/gmgalvan/demo-polymarket-sgnal/examples/kubernetes/base-deployments/04-vllm-neuron-tinyllama-1b-inf2/request.chat-test.json
+  -d @~/demo-polymarket-sgnal/examples/kubernetes/base-deployments/04-vllm-neuron-tinyllama-1b-inf2/request.chat-test.json
 ```
 
 ## 5) Generate demo load
@@ -221,7 +221,7 @@ curl http://127.0.0.1:8000/v1/chat/completions \
 Instead of backgrounding multiple `curl` commands, use the included async load script:
 
 ```bash
-cd /home/gmgalvan/demo-polymarket-sgnal/examples/kubernetes/base-deployments/04-vllm-neuron-tinyllama-1b-inf2
+cd ~/demo-polymarket-sgnal/examples/kubernetes/base-deployments/04-vllm-neuron-tinyllama-1b-inf2
 python3 load_test_async.py --requests 10 --concurrency 5
 ```
 
@@ -273,7 +273,7 @@ then rebuild and push image with this repo's updated `Dockerfile.neuron` (pins `
 ```bash
 kubectl scale deployment/vllm-neuron-tinyllama-1b --replicas=0 -n demo-examples
 
-cd /home/gmgalvan/demo-polymarket-sgnal/examples/kubernetes/base-deployments/04-vllm-neuron-tinyllama-1b-inf2
+cd ~/demo-polymarket-sgnal/examples/kubernetes/base-deployments/04-vllm-neuron-tinyllama-1b-inf2
 AWS_REGION=us-east-1 ECR_REPO=vllm-neuron IMAGE_TAG=latest VLLM_REF=v0.6.0 ./build-and-push-ecr-ec2.sh
 
 kubectl apply -k examples/kubernetes/base-deployments/04-vllm-neuron-tinyllama-1b-inf2
@@ -313,7 +313,7 @@ rebuild image with this repo's `Dockerfile.neuron` (pins compatible libs:
 ```bash
 kubectl scale deployment/vllm-neuron-tinyllama-1b --replicas=0 -n demo-examples
 
-cd /home/gmgalvan/demo-polymarket-sgnal/examples/kubernetes/base-deployments/04-vllm-neuron-tinyllama-1b-inf2
+cd ~/demo-polymarket-sgnal/examples/kubernetes/base-deployments/04-vllm-neuron-tinyllama-1b-inf2
 AWS_REGION=us-east-1 ECR_REPO=vllm-neuron IMAGE_TAG=latest VLLM_REF=v0.6.0 ./build-and-push-ecr-ec2.sh
 
 kubectl apply -k examples/kubernetes/base-deployments/04-vllm-neuron-tinyllama-1b-inf2

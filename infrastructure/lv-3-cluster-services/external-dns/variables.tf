@@ -43,7 +43,7 @@ variable "chart_version" {
 variable "hosted_zone_id" {
   description = "Public Route 53 hosted zone ID that ExternalDNS may update."
   type        = string
-  default     = "Z08205913ACQUTWJH2PLJ"
+  default     = "Z0123456789ABCDEFGHIJ"
 }
 
 variable "domain_filter" {
